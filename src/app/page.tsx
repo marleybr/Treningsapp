@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Workout, Goal, BodyStats, UserProfile, GameStats, calculateLevel } from '@/types';
+import { Workout, Goal, BodyStats, UserProfile, GameStats, calculateLevel, TrainingPlan } from '@/types';
 import Navigation from '@/components/Navigation';
 import Header from '@/components/Header';
 import HomeTab from '@/components/HomeTab';
@@ -31,6 +31,7 @@ export default function Home() {
   const [goals, setGoals] = useLocalStorage<Goal[]>('fittrack-goals', []);
   const [bodyStats, setBodyStats] = useLocalStorage<BodyStats[]>('fittrack-bodystats', []);
   const [gameStats, setGameStats] = useLocalStorage<GameStats>('fittrack-gamestats', initialGameStats);
+  const [trainingPlans, setTrainingPlans] = useLocalStorage<TrainingPlan[]>('fittrack-trainingplans', []);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Active workout state (persists across tab changes)
@@ -163,6 +164,8 @@ export default function Home() {
             setElapsedTime={setElapsedTime}
             isTimerRunning={isTimerRunning}
             setIsTimerRunning={setIsTimerRunning}
+            trainingPlans={trainingPlans}
+            setTrainingPlans={setTrainingPlans}
           />
         );
       case 'progress':

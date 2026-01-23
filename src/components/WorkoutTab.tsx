@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus } from 'lucide-react';
-import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel } from '@/types';
+import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play } from 'lucide-react';
+import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels } from '@/types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -19,6 +19,108 @@ interface WorkoutTabProps {
   setElapsedTime: (time: number) => void;
   isTimerRunning: boolean;
   setIsTimerRunning: (running: boolean) => void;
+  trainingPlans: TrainingPlan[];
+  setTrainingPlans: (plans: TrainingPlan[]) => void;
+}
+
+// AI Treningsplan generator
+const generatePlan = (goal: TrainingPlan['goal'], daysPerWeek: number): TrainingDay[] => {
+  const exercises: Record<string, { name: string; sets: number; reps: string }[]> = {
+    push: [
+      { name: 'Benkpress', sets: 4, reps: '8-10' },
+      { name: 'Skulderpress', sets: 3, reps: '10-12' },
+      { name: 'Dips', sets: 3, reps: '8-12' },
+      { name: 'Triceps pushdown', sets: 3, reps: '12-15' },
+      { name: 'Lateral raises', sets: 3, reps: '15-20' },
+    ],
+    pull: [
+      { name: 'Pullups', sets: 4, reps: '6-10' },
+      { name: 'Rows', sets: 4, reps: '8-10' },
+      { name: 'Face pulls', sets: 3, reps: '15-20' },
+      { name: 'Bicep curls', sets: 3, reps: '12-15' },
+      { name: 'Hammer curls', sets: 3, reps: '12-15' },
+    ],
+    legs: [
+      { name: 'Knebøy', sets: 4, reps: '6-8' },
+      { name: 'Romanian deadlift', sets: 4, reps: '8-10' },
+      { name: 'Leg press', sets: 3, reps: '10-12' },
+      { name: 'Leg curl', sets: 3, reps: '12-15' },
+      { name: 'Calf raises', sets: 4, reps: '15-20' },
+    ],
+    upper: [
+      { name: 'Benkpress', sets: 4, reps: '8-10' },
+      { name: 'Rows', sets: 4, reps: '8-10' },
+      { name: 'Skulderpress', sets: 3, reps: '10-12' },
+      { name: 'Pulldowns', sets: 3, reps: '10-12' },
+      { name: 'Bicep curls', sets: 2, reps: '12-15' },
+      { name: 'Triceps', sets: 2, reps: '12-15' },
+    ],
+    lower: [
+      { name: 'Knebøy', sets: 4, reps: '6-8' },
+      { name: 'Romanian deadlift', sets: 4, reps: '8-10' },
+      { name: 'Lunges', sets: 3, reps: '10 each' },
+      { name: 'Leg curl', sets: 3, reps: '12-15' },
+      { name: 'Calf raises', sets: 4, reps: '15-20' },
+    ],
+    fullbody: [
+      { name: 'Knebøy', sets: 3, reps: '8-10' },
+      { name: 'Benkpress', sets: 3, reps: '8-10' },
+      { name: 'Rows', sets: 3, reps: '8-10' },
+      { name: 'Skulderpress', sets: 2, reps: '10-12' },
+      { name: 'Romanian deadlift', sets: 3, reps: '10-12' },
+    ],
+    cardio: [
+      { name: 'Løping', sets: 1, reps: '20-30 min' },
+      { name: 'Romaskin', sets: 1, reps: '15 min' },
+      { name: 'Burpees', sets: 3, reps: '10-15' },
+      { name: 'Mountain climbers', sets: 3, reps: '30 sek' },
+      { name: 'Jumping jacks', sets: 3, reps: '30 sek' },
+    ],
+  };
+
+  // Tilpass sett/reps basert på mål
+  const adjustForGoal = (ex: { name: string; sets: number; reps: string }) => {
+    if (goal === 'strength') return { ...ex, sets: ex.sets + 1, reps: '4-6' };
+    if (goal === 'muscle') return { ...ex, reps: '8-12' };
+    if (goal === 'weightloss') return { ...ex, sets: 3, reps: '12-15' };
+    return ex;
+  };
+
+  const plans: Record<number, string[][]> = {
+    2: [['fullbody'], ['fullbody']],
+    3: [['push'], ['pull'], ['legs']],
+    4: [['upper'], ['lower'], ['push'], ['pull']],
+    5: [['push'], ['pull'], ['legs'], ['upper'], ['cardio']],
+    6: [['push'], ['pull'], ['legs'], ['push'], ['pull'], ['legs']],
+  };
+
+  const template = plans[daysPerWeek] || plans[3];
+  const dayNames = ['Push', 'Pull', 'Ben', 'Overkropp', 'Underkropp', 'Helkropp', 'Cardio'];
+
+  return template.map((types, i) => {
+    const dayExercises = types.flatMap(t => 
+      (exercises[t] || exercises.fullbody).map(e => ({
+        ...adjustForGoal(e),
+        restSeconds: goal === 'strength' ? 180 : goal === 'weightloss' ? 60 : 90,
+      }))
+    );
+    
+    const getName = () => {
+      if (types.includes('push')) return 'Push dag';
+      if (types.includes('pull')) return 'Pull dag';
+      if (types.includes('legs')) return 'Ben dag';
+      if (types.includes('upper')) return 'Overkropp';
+      if (types.includes('lower')) return 'Underkropp';
+      if (types.includes('cardio')) return 'Cardio';
+      return 'Helkropp';
+    };
+
+    return {
+      dayNumber: i + 1,
+      name: getName(),
+      exercises: dayExercises,
+    };
+  });
 }
 
 const formatTime = (seconds: number): string => {
@@ -46,6 +148,7 @@ export default function WorkoutTab({
   workouts, setWorkouts, gameStats, setGameStats,
   currentWorkout, setCurrentWorkout, workoutStartTime, setWorkoutStartTime,
   elapsedTime, setElapsedTime, isTimerRunning, setIsTimerRunning,
+  trainingPlans, setTrainingPlans,
 }: WorkoutTabProps) {
   const [newExerciseName, setNewExerciseName] = useState('');
   const [showXPGain, setShowXPGain] = useState(false);
@@ -54,6 +157,13 @@ export default function WorkoutTab({
   const [selectedRating, setSelectedRating] = useState(0);
   const [workoutComment, setWorkoutComment] = useState('');
   const [pendingFinish, setPendingFinish] = useState<{ workout: Workout; stats: any } | null>(null);
+  
+  // Treningsplan states
+  const [showPlanGenerator, setShowPlanGenerator] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<TrainingPlan['goal']>('muscle');
+  const [selectedDays, setSelectedDays] = useState(3);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [viewingPlan, setViewingPlan] = useState<TrainingPlan | null>(null);
 
   // Quick start - ett klikk
   const quickStart = () => {
@@ -250,7 +360,201 @@ export default function WorkoutTab({
     setIsTimerRunning(false);
   };
 
+  // Generer AI treningsplan
+  const generateAIPlan = () => {
+    setIsGenerating(true);
+    
+    // Simuler AI-tenking
+    setTimeout(() => {
+      const days = generatePlan(selectedGoal, selectedDays);
+      const newPlan: TrainingPlan = {
+        id: Date.now().toString(),
+        name: `${goalLabels[selectedGoal]} - ${selectedDays} dager`,
+        goal: selectedGoal,
+        daysPerWeek: selectedDays,
+        days,
+        createdAt: new Date().toISOString(),
+      };
+      
+      setTrainingPlans([...trainingPlans, newPlan]);
+      setIsGenerating(false);
+      setShowPlanGenerator(false);
+      setViewingPlan(newPlan);
+    }, 1500);
+  };
+
+  // Start økt fra plan
+  const startFromPlan = (day: TrainingDay) => {
+    const today = new Date();
+    setCurrentWorkout({
+      id: Date.now().toString(),
+      date: today.toISOString(),
+      name: day.name,
+      exercises: day.exercises.map((ex, i) => ({
+        id: (i + 1).toString(),
+        exerciseId: ex.name.toLowerCase().replace(/\s+/g, '-'),
+        exerciseName: ex.name,
+        sets: Array.from({ length: ex.sets }, (_, j) => ({
+          id: (j + 1).toString(),
+          reps: parseInt(ex.reps) || 10,
+          weight: 20,
+          completed: false,
+        })),
+      })),
+    });
+    setWorkoutStartTime(today);
+    setElapsedTime(0);
+    setIsTimerRunning(true);
+    setViewingPlan(null);
+  };
+
+  // Slett plan
+  const deletePlan = (planId: string) => {
+    setTrainingPlans(trainingPlans.filter(p => p.id !== planId));
+    if (viewingPlan?.id === planId) setViewingPlan(null);
+  };
+
   const volume = currentWorkout ? calculateWorkoutVolume(currentWorkout) : 0;
+
+  // Plan Generator Modal
+  if (showPlanGenerator) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+        <div className="w-full max-w-sm bg-deep-purple rounded-2xl p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <Brain className="text-electric" size={24} />
+              <h2 className="text-xl font-bold">AI Treningsplan</h2>
+            </div>
+            <button onClick={() => setShowPlanGenerator(false)} className="p-2">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {/* Mål */}
+            <div>
+              <p className="text-soft-white/60 text-sm mb-3">Hva er målet ditt?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['muscle', 'strength', 'weightloss', 'fitness'] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setSelectedGoal(g)}
+                    className={`p-3 rounded-xl border-2 transition-all ${
+                      selectedGoal === g 
+                        ? 'border-electric bg-electric/10 text-electric' 
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <span className="text-2xl mb-1 block">
+                      {g === 'muscle' && '💪'}
+                      {g === 'strength' && '🏋️'}
+                      {g === 'weightloss' && '🔥'}
+                      {g === 'fitness' && '🏃'}
+                    </span>
+                    <span className="text-sm">{goalLabels[g]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dager per uke */}
+            <div>
+              <p className="text-soft-white/60 text-sm mb-3">Hvor mange dager per uke?</p>
+              <div className="flex gap-2">
+                {[2, 3, 4, 5, 6].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setSelectedDays(d)}
+                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${
+                      selectedDays === d 
+                        ? 'border-electric bg-electric/10 text-electric' 
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Generer knapp */}
+            <button
+              onClick={generateAIPlan}
+              disabled={isGenerating}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <Sparkles className="animate-spin" size={20} />
+                  Genererer...
+                </>
+              ) : (
+                <>
+                  <Brain size={20} />
+                  Generer plan
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Viewing Plan Modal
+  if (viewingPlan) {
+    return (
+      <div className="space-y-4 pb-24">
+        <div className="flex items-center justify-between">
+          <button onClick={() => setViewingPlan(null)} className="text-soft-white/60 flex items-center gap-1">
+            <ChevronRight className="rotate-180" size={20} />
+            Tilbake
+          </button>
+          <button 
+            onClick={() => deletePlan(viewingPlan.id)}
+            className="text-coral text-sm"
+          >
+            Slett plan
+          </button>
+        </div>
+
+        <div className="text-center py-4">
+          <h2 className="text-2xl font-bold">{viewingPlan.name}</h2>
+          <p className="text-soft-white/60">{viewingPlan.daysPerWeek} dager per uke</p>
+        </div>
+
+        <div className="space-y-3">
+          {viewingPlan.days.map((day) => (
+            <div key={day.dayNumber} className="p-4 rounded-2xl bg-white/5">
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <span className="text-electric text-sm">Dag {day.dayNumber}</span>
+                  <h3 className="font-bold text-lg">{day.name}</h3>
+                </div>
+                <button
+                  onClick={() => startFromPlan(day)}
+                  className="px-4 py-2 rounded-xl bg-electric text-midnight font-semibold flex items-center gap-2"
+                >
+                  <Play size={16} />
+                  Start
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {day.exercises.map((ex, i) => (
+                  <div key={i} className="flex justify-between text-sm py-1 border-b border-white/5 last:border-0">
+                    <span>{ex.name}</span>
+                    <span className="text-soft-white/60">{ex.sets} × {ex.reps}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // XP Overlay
   if (showXPGain) {
@@ -456,6 +760,48 @@ export default function WorkoutTab({
         <Plus size={28} />
         Start trening
       </button>
+
+      {/* AI Treningsplan */}
+      <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-600/20 to-electric/10 border border-white/10">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-electric/20 flex items-center justify-center">
+            <Brain className="text-electric" size={20} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold">AI Treningsplan</h3>
+            <p className="text-soft-white/60 text-sm">Få en personlig plan</p>
+          </div>
+          <button
+            onClick={() => setShowPlanGenerator(true)}
+            className="px-4 py-2 rounded-xl bg-electric text-midnight font-semibold text-sm"
+          >
+            Lag ny
+          </button>
+        </div>
+
+        {/* Eksisterende planer */}
+        {trainingPlans.length > 0 && (
+          <div className="space-y-2 mt-4 pt-4 border-t border-white/10">
+            <p className="text-soft-white/50 text-xs">DINE PLANER</p>
+            {trainingPlans.map((plan) => (
+              <button
+                key={plan.id}
+                onClick={() => setViewingPlan(plan)}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <Dumbbell size={18} className="text-electric" />
+                  <div className="text-left">
+                    <p className="font-medium">{plan.name}</p>
+                    <p className="text-soft-white/50 text-xs">{plan.daysPerWeek} dager/uke</p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-soft-white/40" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">

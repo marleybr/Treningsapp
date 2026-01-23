@@ -168,6 +168,36 @@ export interface Workout {
   comment?: string; // valgfri kommentar
 }
 
+// Treningsplan
+export interface TrainingPlan {
+  id: string;
+  name: string;
+  goal: 'strength' | 'muscle' | 'weightloss' | 'fitness';
+  daysPerWeek: number;
+  days: TrainingDay[];
+  createdAt: string;
+}
+
+export interface TrainingDay {
+  dayNumber: number;
+  name: string;
+  exercises: PlannedExercise[];
+}
+
+export interface PlannedExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+}
+
+export const goalLabels: Record<TrainingPlan['goal'], string> = {
+  strength: 'Styrke',
+  muscle: 'Muskelvekst',
+  weightloss: 'Vekttap',
+  fitness: 'Kondisjon',
+};
+
 // Mål typer
 export interface Goal {
   id: string;
