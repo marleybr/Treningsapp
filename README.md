@@ -82,3 +82,4 @@ MIT
 
 
 
+# AI Food Scanner enabled
