@@ -1,6 +1,6 @@
 'use client';
 
-import { Dumbbell, TrendingUp, Home, User } from 'lucide-react';
+import { Dumbbell, TrendingUp, Home, User, Apple } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -12,6 +12,7 @@ export default function Navigation({ activeTab, setActiveTab, hasActiveWorkout }
   const tabs = [
     { id: 'home', label: 'Hjem', icon: Home },
     { id: 'workout', label: 'Trening', icon: Dumbbell },
+    { id: 'nutrition', label: 'Kosthold', icon: Apple },
     { id: 'progress', label: 'Fremgang', icon: TrendingUp },
     { id: 'profile', label: 'Profil', icon: User },
   ];
@@ -29,7 +30,7 @@ export default function Navigation({ activeTab, setActiveTab, hasActiveWorkout }
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all duration-300 ${
+                className={`relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 ${
                   isActive 
                     ? 'text-electric glow-electric bg-electric/10' 
                     : 'text-soft-white/60 hover:text-soft-white'

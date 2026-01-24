@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Header from '@/components/Header';
 import HomeTab from '@/components/HomeTab';
 import WorkoutTab from '@/components/WorkoutTab';
+import NutritionTab from '@/components/NutritionTab';
 import ProgressTab from '@/components/ProgressTab';
 import ProfileTab from '@/components/ProfileTab';
 import Onboarding from '@/components/Onboarding';
@@ -167,6 +168,12 @@ export default function Home() {
             trainingPlans={trainingPlans}
             setTrainingPlans={setTrainingPlans}
             userProfile={profile}
+          />
+        );
+      case 'nutrition':
+        return (
+          <NutritionTab 
+            profile={profile}
           />
         );
       case 'progress':
