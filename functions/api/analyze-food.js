@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(request: NextRequest) {
+export async function onRequestPost(context) {
   try {
+    const { request, env } = context;
     const { image } = await request.json();
-    
+
     if (!image) {
-      return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+      return new Response(JSON.stringify({ error: 'No image provided' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Check for OpenAI API key
-    const apiKey = process.env.OPENAI_API_KEY;
-    
+    const apiKey = env.OPENAI_API_KEY;
+
     if (!apiKey) {
       // Return demo data if no API key is configured
-      console.log('No OPENAI_API_KEY found, returning demo data');
-      return NextResponse.json({
+      return new Response(JSON.stringify({
         success: true,
         demo: true,
         analysis: {
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
           confidence: 'medium',
           description: 'For å aktivere AI-analyse, legg til OPENAI_API_KEY i miljøvariabler.',
         }
+      }), {
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -93,19 +96,24 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const error = await response.text();
       console.error('OpenAI API error:', error);
-      return NextResponse.json({ error: 'Failed to analyze image' }, { status: 500 });
+      return new Response(JSON.stringify({ error: 'Failed to analyze image' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
     const content = data.choices[0]?.message?.content;
 
     if (!content) {
-      return NextResponse.json({ error: 'No analysis returned' }, { status: 500 });
+      return new Response(JSON.stringify({ error: 'No analysis returned' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Parse the JSON response
     try {
-      // Extract JSON from the response (in case there's extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in response');
@@ -113,20 +121,28 @@ export async function POST(request: NextRequest) {
       
       const analysis = JSON.parse(jsonMatch[0]);
       
-      return NextResponse.json({
+      return new Response(JSON.stringify({
         success: true,
         analysis,
+      }), {
+        headers: { 'Content-Type': 'application/json' },
       });
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         error: 'Failed to parse analysis',
         raw: content 
-      }, { status: 500 });
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
   } catch (error) {
     console.error('Error analyzing food:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
