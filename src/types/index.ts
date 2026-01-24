@@ -12,7 +12,54 @@ export interface UserProfile {
   fitnessGoal: 'lose_weight' | 'maintain' | 'build_muscle' | 'improve_fitness';
   createdAt: string;
   avatarColor?: string;
+  
+  // Utvidet profilinformasjon
+  experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+  availableEquipment?: ('gym' | 'home_basic' | 'home_full' | 'bodyweight')[];
+  focusAreas?: ('chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core' | 'glutes')[];
+  injuries?: string[];
+  preferredWorkoutDuration?: 30 | 45 | 60 | 90;
+  workoutsPerWeek?: number;
+  specificGoals?: {
+    benchPress?: number;
+    squat?: number;
+    deadlift?: number;
+    pullups?: number;
+    runningDistance?: number;
+  };
+  trainingPreferences?: {
+    preferCardio?: boolean;
+    preferHIIT?: boolean;
+    preferStrength?: boolean;
+    preferFlexibility?: boolean;
+  };
 }
+
+// Erfaringsnivå oversettelser
+export const experienceLevelLabels: Record<NonNullable<UserProfile['experienceLevel']>, string> = {
+  beginner: 'Nybegynner',
+  intermediate: 'Middels',
+  advanced: 'Avansert',
+};
+
+// Utstyr oversettelser
+export const equipmentLabels: Record<string, string> = {
+  gym: 'Treningssenter',
+  home_basic: 'Hjemme (grunnleggende)',
+  home_full: 'Hjemme (fullt utstyrt)',
+  bodyweight: 'Kun kroppsvekt',
+};
+
+// Fokusområder oversettelser
+export const focusAreaLabels: Record<string, string> = {
+  chest: 'Bryst',
+  back: 'Rygg',
+  shoulders: 'Skuldre',
+  arms: 'Armer',
+  legs: 'Ben',
+  core: 'Mage/Core',
+  glutes: 'Rumpe',
+};
 
 // Gamification
 export interface GameStats {

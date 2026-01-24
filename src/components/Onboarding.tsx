@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { User, Ruler, Scale, Target, Activity, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
-import { UserProfile, activityLevelLabels, fitnessGoalLabels } from '@/types';
+import { User, Ruler, Scale, Target, Activity, ChevronRight, ChevronLeft, Sparkles, Dumbbell, Clock, Crosshair, AlertTriangle, Heart } from 'lucide-react';
+import { UserProfile, activityLevelLabels, fitnessGoalLabels, experienceLevelLabels, equipmentLabels, focusAreaLabels } from '@/types';
 
 interface OnboardingProps {
   onComplete: (profile: UserProfile) => void;
@@ -18,8 +18,29 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [activityLevel, setActivityLevel] = useState<UserProfile['activityLevel']>('moderate');
   const [fitnessGoal, setFitnessGoal] = useState<UserProfile['fitnessGoal']>('improve_fitness');
+  
+  // Nye felter
+  const [experienceLevel, setExperienceLevel] = useState<UserProfile['experienceLevel']>('beginner');
+  const [availableEquipment, setAvailableEquipment] = useState<string[]>(['gym']);
+  const [focusAreas, setFocusAreas] = useState<string[]>([]);
+  const [injuries, setInjuries] = useState<string[]>([]);
+  const [customInjury, setCustomInjury] = useState('');
+  const [preferredDuration, setPreferredDuration] = useState<30 | 45 | 60 | 90>(45);
+  const [workoutsPerWeek, setWorkoutsPerWeek] = useState(3);
+  const [specificGoals, setSpecificGoals] = useState({
+    benchPress: '',
+    squat: '',
+    deadlift: '',
+    pullups: '',
+  });
+  const [trainingPreferences, setTrainingPreferences] = useState({
+    preferCardio: false,
+    preferHIIT: false,
+    preferStrength: true,
+    preferFlexibility: false,
+  });
 
-  const totalSteps = 4;
+  const totalSteps = 8;
 
   const avatarColors = ['#00d9ff', '#39ff14', '#ff6b6b', '#ffd93d', '#a855f7', '#f97316'];
 
@@ -51,6 +72,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       fitnessGoal,
       createdAt: new Date().toISOString(),
       avatarColor: randomColor,
+      // Utvidet profil
+      experienceLevel,
+      availableEquipment: availableEquipment as UserProfile['availableEquipment'],
+      focusAreas: focusAreas.length > 0 ? focusAreas as UserProfile['focusAreas'] : undefined,
+      injuries: injuries.length > 0 ? injuries : undefined,
+      preferredWorkoutDuration: preferredDuration,
+      workoutsPerWeek,
+      specificGoals: {
+        benchPress: specificGoals.benchPress ? Number(specificGoals.benchPress) : undefined,
+        squat: specificGoals.squat ? Number(specificGoals.squat) : undefined,
+        deadlift: specificGoals.deadlift ? Number(specificGoals.deadlift) : undefined,
+        pullups: specificGoals.pullups ? Number(specificGoals.pullups) : undefined,
+      },
+      trainingPreferences,
     };
     onComplete(profile);
   };
@@ -59,11 +94,39 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     switch (step) {
       case 1: return name.trim().length >= 2;
       case 2: return height.length > 0 && currentWeight.length > 0;
-      case 3: return true;
-      case 4: return true;
+      case 3: return true; // aktivitetsnivå
+      case 4: return true; // treningsmål
+      case 5: return true; // erfaringsnivå
+      case 6: return availableEquipment.length > 0; // utstyr
+      case 7: return true; // fokusområder og skader
+      case 8: return true; // treningsfrekvens og varighet
       default: return false;
     }
   };
+
+  const toggleArrayItem = (array: string[], item: string, setArray: (arr: string[]) => void) => {
+    if (array.includes(item)) {
+      setArray(array.filter(i => i !== item));
+    } else {
+      setArray([...array, item]);
+    }
+  };
+
+  const addCustomInjury = () => {
+    if (customInjury.trim() && !injuries.includes(customInjury.trim())) {
+      setInjuries([...injuries, customInjury.trim()]);
+      setCustomInjury('');
+    }
+  };
+
+  const commonInjuries = [
+    'Ryggproblemer',
+    'Kneproblemer',
+    'Skulderproblemer',
+    'Nakkesmerter',
+    'Håndleddsskade',
+    'Ankelskade',
+  ];
 
   const renderStep = () => {
     switch (step) {
@@ -252,6 +315,335 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 </button>
               ))}
             </div>
+          </div>
+        );
+
+      case 5:
+        return (
+          <div className="space-y-6 animate-fadeInUp">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                <Dumbbell className="text-purple-400" size={40} />
+              </div>
+              <h2 className="text-2xl font-display font-bold">Treningserfaring</h2>
+              <p className="text-soft-white/60 mt-2">Hvor erfaren er du med trening?</p>
+            </div>
+
+            <div className="space-y-3">
+              {([
+                { level: 'beginner' as const, emoji: '🌱', desc: 'Ny til trening eller har trent i mindre enn 6 måneder' },
+                { level: 'intermediate' as const, emoji: '💪', desc: 'Har trent regelmessig i 6 mnd - 2 år' },
+                { level: 'advanced' as const, emoji: '🏆', desc: 'Mer enn 2 års erfaring med strukturert trening' },
+              ]).map(({ level, emoji, desc }) => (
+                <button
+                  type="button"
+                  key={level}
+                  onClick={() => setExperienceLevel(level)}
+                  className={`w-full p-4 rounded-xl transition-all text-left flex items-center gap-4 ${
+                    experienceLevel === level 
+                      ? 'bg-purple-500/20 border-2 border-purple-400' 
+                      : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+                    experienceLevel === level ? 'bg-purple-500/30' : 'bg-white/10'
+                  }`}>
+                    {emoji}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{experienceLevelLabels[level]}</p>
+                    <p className="text-sm text-soft-white/60">{desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 6:
+        return (
+          <div className="space-y-6 animate-fadeInUp">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
+                <Dumbbell className="text-orange-400" size={40} />
+              </div>
+              <h2 className="text-2xl font-display font-bold">Tilgjengelig utstyr</h2>
+              <p className="text-soft-white/60 mt-2">Velg alt som gjelder for deg</p>
+            </div>
+
+            <div className="space-y-3">
+              {([
+                { id: 'gym', emoji: '🏋️', label: 'Treningssenter', desc: 'Tilgang til fullt utstyrt gym' },
+                { id: 'home_full', emoji: '🏠', label: 'Hjemmegym (fullt)', desc: 'Vekter, stativ, benk, maskiner' },
+                { id: 'home_basic', emoji: '🎯', label: 'Hjemmegym (basis)', desc: 'Manualer, strikk, kettlebell' },
+                { id: 'bodyweight', emoji: '🤸', label: 'Kun kroppsvekt', desc: 'Ingen utstyr nødvendig' },
+              ]).map(({ id, emoji, label, desc }) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => toggleArrayItem(availableEquipment, id, setAvailableEquipment)}
+                  className={`w-full p-4 rounded-xl transition-all text-left flex items-center gap-4 ${
+                    availableEquipment.includes(id)
+                      ? 'bg-orange-500/20 border-2 border-orange-400' 
+                      : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+                    availableEquipment.includes(id) ? 'bg-orange-500/30' : 'bg-white/10'
+                  }`}>
+                    {emoji}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold">{label}</p>
+                    <p className="text-sm text-soft-white/60">{desc}</p>
+                  </div>
+                  {availableEquipment.includes(id) && (
+                    <div className="w-6 h-6 rounded-full bg-orange-400 flex items-center justify-center">
+                      <span className="text-midnight text-sm">✓</span>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 7:
+        return (
+          <div className="space-y-6 animate-fadeInUp">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 rounded-full bg-pink-500/20 flex items-center justify-center mx-auto mb-4">
+                <Crosshair className="text-pink-400" size={40} />
+              </div>
+              <h2 className="text-2xl font-display font-bold">Fokusområder</h2>
+              <p className="text-soft-white/60 mt-2">Hvilke kroppsområder vil du fokusere på?</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: 'chest', emoji: '💪', label: 'Bryst' },
+                { id: 'back', emoji: '🔙', label: 'Rygg' },
+                { id: 'shoulders', emoji: '🎯', label: 'Skuldre' },
+                { id: 'arms', emoji: '💪', label: 'Armer' },
+                { id: 'legs', emoji: '🦵', label: 'Ben' },
+                { id: 'core', emoji: '🔥', label: 'Mage/Core' },
+                { id: 'glutes', emoji: '🍑', label: 'Rumpe' },
+              ]).map(({ id, emoji, label }) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => toggleArrayItem(focusAreas, id, setFocusAreas)}
+                  className={`p-3 rounded-xl transition-all flex items-center gap-2 ${
+                    focusAreas.includes(id)
+                      ? 'bg-pink-500/20 border-2 border-pink-400' 
+                      : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <span className="text-xl">{emoji}</span>
+                  <span className="font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            <p className="text-soft-white/40 text-sm text-center">
+              Velg så mange du vil, eller hopp over for balansert trening
+            </p>
+
+            {/* Skader/begrensninger */}
+            <div className="pt-4 border-t border-white/10">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="text-yellow-400" size={18} />
+                <p className="text-soft-white/80 font-medium">Skader eller begrensninger?</p>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mb-3">
+                {commonInjuries.map((injury) => (
+                  <button
+                    type="button"
+                    key={injury}
+                    onClick={() => toggleArrayItem(injuries, injury, setInjuries)}
+                    className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                      injuries.includes(injury)
+                        ? 'bg-yellow-500/20 border border-yellow-400 text-yellow-400' 
+                        : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    {injury}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customInjury}
+                  onChange={(e) => setCustomInjury(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addCustomInjury()}
+                  placeholder="Annen skade..."
+                  className="flex-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm focus:border-electric outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomInjury}
+                  disabled={!customInjury.trim()}
+                  className="px-4 py-2 rounded-xl bg-white/10 text-sm font-medium disabled:opacity-30"
+                >
+                  Legg til
+                </button>
+              </div>
+
+              {injuries.filter(i => !commonInjuries.includes(i)).length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {injuries.filter(i => !commonInjuries.includes(i)).map((injury) => (
+                    <span
+                      key={injury}
+                      className="px-3 py-1.5 rounded-full text-sm bg-yellow-500/20 border border-yellow-400 text-yellow-400 flex items-center gap-2"
+                    >
+                      {injury}
+                      <button onClick={() => setInjuries(injuries.filter(i => i !== injury))} className="hover:text-white">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 8:
+        return (
+          <div className="space-y-6 animate-fadeInUp">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
+                <Clock className="text-cyan-400" size={40} />
+              </div>
+              <h2 className="text-2xl font-display font-bold">Treningsplan</h2>
+              <p className="text-soft-white/60 mt-2">Siste steg - tilpass din plan</p>
+            </div>
+
+            {/* Treningsdager per uke */}
+            <div>
+              <p className="text-soft-white/80 font-medium mb-3">Hvor ofte vil du trene?</p>
+              <div className="flex gap-2">
+                {[2, 3, 4, 5, 6].map((days) => (
+                  <button
+                    type="button"
+                    key={days}
+                    onClick={() => setWorkoutsPerWeek(days)}
+                    className={`flex-1 py-4 rounded-xl transition-all text-center ${
+                      workoutsPerWeek === days 
+                        ? 'bg-cyan-500/20 border-2 border-cyan-400' 
+                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                    }`}
+                  >
+                    <p className="text-xl font-bold">{days}</p>
+                    <p className="text-xs text-soft-white/60">dager</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Øktvarighet */}
+            <div>
+              <p className="text-soft-white/80 font-medium mb-3">Hvor lang tid per økt?</p>
+              <div className="grid grid-cols-4 gap-2">
+                {([30, 45, 60, 90] as const).map((mins) => (
+                  <button
+                    type="button"
+                    key={mins}
+                    onClick={() => setPreferredDuration(mins)}
+                    className={`py-3 rounded-xl transition-all ${
+                      preferredDuration === mins 
+                        ? 'bg-cyan-500/20 border-2 border-cyan-400' 
+                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                    }`}
+                  >
+                    <p className="font-bold">{mins}</p>
+                    <p className="text-xs text-soft-white/60">min</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Treningspreferanser */}
+            <div>
+              <p className="text-soft-white/80 font-medium mb-3">Hvilke treningstyper liker du?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'preferStrength', emoji: '🏋️', label: 'Styrketrening' },
+                  { id: 'preferCardio', emoji: '🏃', label: 'Cardio' },
+                  { id: 'preferHIIT', emoji: '⚡', label: 'HIIT' },
+                  { id: 'preferFlexibility', emoji: '🧘', label: 'Stretch/Yoga' },
+                ] as const).map(({ id, emoji, label }) => (
+                  <button
+                    type="button"
+                    key={id}
+                    onClick={() => setTrainingPreferences({ ...trainingPreferences, [id]: !trainingPreferences[id] })}
+                    className={`p-3 rounded-xl transition-all flex items-center gap-2 ${
+                      trainingPreferences[id]
+                        ? 'bg-cyan-500/20 border-2 border-cyan-400' 
+                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-xl">{emoji}</span>
+                    <span className="font-medium text-sm">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Spesifikke mål (valgfritt) - vis bare for styrke */}
+            {(fitnessGoal === 'build_muscle' || trainingPreferences.preferStrength) && (
+              <div className="pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="text-electric" size={18} />
+                  <p className="text-soft-white/80 font-medium">Spesifikke styrkemål (valgfritt)</p>
+                </div>
+                <p className="text-soft-white/40 text-sm mb-3">Legg inn målvekter du vil nå</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-soft-white/60">Benkpress (kg)</label>
+                    <input
+                      type="number"
+                      value={specificGoals.benchPress}
+                      onChange={(e) => setSpecificGoals({ ...specificGoals, benchPress: e.target.value })}
+                      placeholder="100"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm focus:border-electric outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-soft-white/60">Knebøy (kg)</label>
+                    <input
+                      type="number"
+                      value={specificGoals.squat}
+                      onChange={(e) => setSpecificGoals({ ...specificGoals, squat: e.target.value })}
+                      placeholder="120"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm focus:border-electric outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-soft-white/60">Markløft (kg)</label>
+                    <input
+                      type="number"
+                      value={specificGoals.deadlift}
+                      onChange={(e) => setSpecificGoals({ ...specificGoals, deadlift: e.target.value })}
+                      placeholder="140"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm focus:border-electric outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-soft-white/60">Pullups (antall)</label>
+                    <input
+                      type="number"
+                      value={specificGoals.pullups}
+                      onChange={(e) => setSpecificGoals({ ...specificGoals, pullups: e.target.value })}
+                      placeholder="10"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm focus:border-electric outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 

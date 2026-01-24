@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play } from 'lucide-react';
-import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels } from '@/types';
+import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play, Target, AlertTriangle, Flame } from 'lucide-react';
+import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels, UserProfile, experienceLevelLabels, focusAreaLabels } from '@/types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -21,107 +21,416 @@ interface WorkoutTabProps {
   setIsTimerRunning: (running: boolean) => void;
   trainingPlans: TrainingPlan[];
   setTrainingPlans: (plans: TrainingPlan[]) => void;
+  userProfile?: UserProfile;
 }
 
-// AI Treningsplan generator
-const generatePlan = (goal: TrainingPlan['goal'], daysPerWeek: number): TrainingDay[] => {
-  const exercises: Record<string, { name: string; sets: number; reps: string }[]> = {
-    push: [
-      { name: 'Benkpress', sets: 4, reps: '8-10' },
-      { name: 'Skulderpress', sets: 3, reps: '10-12' },
-      { name: 'Dips', sets: 3, reps: '8-12' },
-      { name: 'Triceps pushdown', sets: 3, reps: '12-15' },
-      { name: 'Lateral raises', sets: 3, reps: '15-20' },
-    ],
-    pull: [
-      { name: 'Pullups', sets: 4, reps: '6-10' },
-      { name: 'Rows', sets: 4, reps: '8-10' },
-      { name: 'Face pulls', sets: 3, reps: '15-20' },
-      { name: 'Bicep curls', sets: 3, reps: '12-15' },
-      { name: 'Hammer curls', sets: 3, reps: '12-15' },
-    ],
-    legs: [
-      { name: 'Knebøy', sets: 4, reps: '6-8' },
-      { name: 'Romanian deadlift', sets: 4, reps: '8-10' },
-      { name: 'Leg press', sets: 3, reps: '10-12' },
-      { name: 'Leg curl', sets: 3, reps: '12-15' },
-      { name: 'Calf raises', sets: 4, reps: '15-20' },
-    ],
-    upper: [
-      { name: 'Benkpress', sets: 4, reps: '8-10' },
-      { name: 'Rows', sets: 4, reps: '8-10' },
-      { name: 'Skulderpress', sets: 3, reps: '10-12' },
-      { name: 'Pulldowns', sets: 3, reps: '10-12' },
-      { name: 'Bicep curls', sets: 2, reps: '12-15' },
-      { name: 'Triceps', sets: 2, reps: '12-15' },
-    ],
-    lower: [
-      { name: 'Knebøy', sets: 4, reps: '6-8' },
-      { name: 'Romanian deadlift', sets: 4, reps: '8-10' },
-      { name: 'Lunges', sets: 3, reps: '10 each' },
-      { name: 'Leg curl', sets: 3, reps: '12-15' },
-      { name: 'Calf raises', sets: 4, reps: '15-20' },
-    ],
-    fullbody: [
-      { name: 'Knebøy', sets: 3, reps: '8-10' },
-      { name: 'Benkpress', sets: 3, reps: '8-10' },
-      { name: 'Rows', sets: 3, reps: '8-10' },
-      { name: 'Skulderpress', sets: 2, reps: '10-12' },
-      { name: 'Romanian deadlift', sets: 3, reps: '10-12' },
-    ],
-    cardio: [
-      { name: 'Løping', sets: 1, reps: '20-30 min' },
-      { name: 'Romaskin', sets: 1, reps: '15 min' },
-      { name: 'Burpees', sets: 3, reps: '10-15' },
-      { name: 'Mountain climbers', sets: 3, reps: '30 sek' },
-      { name: 'Jumping jacks', sets: 3, reps: '30 sek' },
-    ],
+// Utvidet øvelsesdatabase med utstyrskrav og muskelgrupper
+interface ExerciseDefinition {
+  name: string;
+  category: 'compound' | 'isolation' | 'cardio';
+  equipment: ('gym' | 'home_basic' | 'home_full' | 'bodyweight')[];
+  primaryMuscles: string[];
+  secondaryMuscles: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  avoidWithInjuries?: string[];
+}
+
+const EXERCISE_DATABASE: ExerciseDefinition[] = [
+  // Bryst øvelser
+  { name: 'Benkpress', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders'], difficulty: 'intermediate' },
+  { name: 'Skråbenk', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders'], difficulty: 'intermediate' },
+  { name: 'Manualpress', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders'], difficulty: 'beginner' },
+  { name: 'Kabelflyes', category: 'isolation', equipment: ['gym'], primaryMuscles: ['chest'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Push-ups', category: 'compound', equipment: ['bodyweight', 'home_basic', 'home_full', 'gym'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders', 'core'], difficulty: 'beginner' },
+  { name: 'Decline push-ups', category: 'compound', equipment: ['bodyweight', 'home_basic'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps', 'shoulders'], difficulty: 'intermediate' },
+  { name: 'Dips', category: 'compound', equipment: ['gym', 'home_full', 'bodyweight'], primaryMuscles: ['chest', 'triceps'], secondaryMuscles: ['shoulders'], difficulty: 'intermediate', avoidWithInjuries: ['Skulderproblemer'] },
+  { name: 'Chest press maskin', category: 'compound', equipment: ['gym'], primaryMuscles: ['chest'], secondaryMuscles: ['triceps'], difficulty: 'beginner' },
+  
+  // Rygg øvelser
+  { name: 'Pullups', category: 'compound', equipment: ['gym', 'home_full', 'bodyweight'], primaryMuscles: ['back'], secondaryMuscles: ['biceps', 'shoulders'], difficulty: 'intermediate' },
+  { name: 'Chin-ups', category: 'compound', equipment: ['gym', 'home_full', 'bodyweight'], primaryMuscles: ['back', 'biceps'], secondaryMuscles: ['shoulders'], difficulty: 'intermediate' },
+  { name: 'Lat pulldown', category: 'compound', equipment: ['gym'], primaryMuscles: ['back'], secondaryMuscles: ['biceps'], difficulty: 'beginner' },
+  { name: 'Sittende rows', category: 'compound', equipment: ['gym'], primaryMuscles: ['back'], secondaryMuscles: ['biceps', 'shoulders'], difficulty: 'beginner' },
+  { name: 'Bøyde rows', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['back'], secondaryMuscles: ['biceps'], difficulty: 'intermediate', avoidWithInjuries: ['Ryggproblemer'] },
+  { name: 'Enarms row', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['back'], secondaryMuscles: ['biceps'], difficulty: 'beginner' },
+  { name: 'Face pulls', category: 'isolation', equipment: ['gym'], primaryMuscles: ['back', 'shoulders'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Inverted rows', category: 'compound', equipment: ['gym', 'bodyweight'], primaryMuscles: ['back'], secondaryMuscles: ['biceps'], difficulty: 'beginner' },
+  { name: 'Superman hold', category: 'isolation', equipment: ['bodyweight'], primaryMuscles: ['back'], secondaryMuscles: ['glutes'], difficulty: 'beginner' },
+  
+  // Skulder øvelser
+  { name: 'Skulderpress', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['shoulders'], secondaryMuscles: ['triceps'], difficulty: 'intermediate', avoidWithInjuries: ['Skulderproblemer'] },
+  { name: 'Arnold press', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['shoulders'], secondaryMuscles: ['triceps'], difficulty: 'intermediate' },
+  { name: 'Lateral raises', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['shoulders'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Front raises', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['shoulders'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Reverse flyes', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['shoulders', 'back'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Pike push-ups', category: 'compound', equipment: ['bodyweight'], primaryMuscles: ['shoulders'], secondaryMuscles: ['triceps'], difficulty: 'intermediate' },
+  { name: 'Handstand push-ups', category: 'compound', equipment: ['bodyweight'], primaryMuscles: ['shoulders'], secondaryMuscles: ['triceps', 'core'], difficulty: 'advanced' },
+  
+  // Arm øvelser
+  { name: 'Bicep curls', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['biceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Hammer curls', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['biceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Preacher curls', category: 'isolation', equipment: ['gym'], primaryMuscles: ['biceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Concentration curls', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['biceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Triceps pushdown', category: 'isolation', equipment: ['gym'], primaryMuscles: ['triceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Triceps extensions', category: 'isolation', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['triceps'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Skull crushers', category: 'isolation', equipment: ['gym', 'home_full'], primaryMuscles: ['triceps'], secondaryMuscles: [], difficulty: 'intermediate' },
+  { name: 'Close-grip push-ups', category: 'compound', equipment: ['bodyweight'], primaryMuscles: ['triceps'], secondaryMuscles: ['chest'], difficulty: 'beginner' },
+  { name: 'Diamond push-ups', category: 'compound', equipment: ['bodyweight'], primaryMuscles: ['triceps'], secondaryMuscles: ['chest'], difficulty: 'intermediate' },
+  
+  // Ben øvelser
+  { name: 'Knebøy', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'intermediate', avoidWithInjuries: ['Kneproblemer', 'Ryggproblemer'] },
+  { name: 'Front squat', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['legs'], secondaryMuscles: ['core', 'glutes'], difficulty: 'advanced', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Goblet squat', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'beginner' },
+  { name: 'Bodyweight squats', category: 'compound', equipment: ['bodyweight'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'beginner' },
+  { name: 'Romanian deadlift', category: 'compound', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['back'], difficulty: 'intermediate', avoidWithInjuries: ['Ryggproblemer'] },
+  { name: 'Markløft', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['legs', 'back', 'glutes'], secondaryMuscles: ['core'], difficulty: 'advanced', avoidWithInjuries: ['Ryggproblemer'] },
+  { name: 'Leg press', category: 'compound', equipment: ['gym'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: [], difficulty: 'beginner', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Leg extension', category: 'isolation', equipment: ['gym'], primaryMuscles: ['legs'], secondaryMuscles: [], difficulty: 'beginner', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Leg curl', category: 'isolation', equipment: ['gym'], primaryMuscles: ['legs'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Lunges', category: 'compound', equipment: ['gym', 'home_basic', 'home_full', 'bodyweight'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'beginner', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Bulgarian split squat', category: 'compound', equipment: ['gym', 'home_basic', 'bodyweight'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'intermediate', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Step-ups', category: 'compound', equipment: ['gym', 'home_basic', 'bodyweight'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Calf raises', category: 'isolation', equipment: ['gym', 'home_basic', 'bodyweight'], primaryMuscles: ['legs'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Hip thrusts', category: 'compound', equipment: ['gym', 'home_full'], primaryMuscles: ['glutes'], secondaryMuscles: ['legs'], difficulty: 'intermediate' },
+  { name: 'Glute bridges', category: 'compound', equipment: ['bodyweight', 'home_basic'], primaryMuscles: ['glutes'], secondaryMuscles: ['legs', 'core'], difficulty: 'beginner' },
+  
+  // Core øvelser
+  { name: 'Plank', category: 'isolation', equipment: ['bodyweight', 'gym', 'home_basic', 'home_full'], primaryMuscles: ['core'], secondaryMuscles: ['shoulders'], difficulty: 'beginner' },
+  { name: 'Side plank', category: 'isolation', equipment: ['bodyweight'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Dead bug', category: 'isolation', equipment: ['bodyweight'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'beginner', avoidWithInjuries: ['Ryggproblemer'] },
+  { name: 'Russian twists', category: 'isolation', equipment: ['bodyweight', 'home_basic'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Bicycle crunches', category: 'isolation', equipment: ['bodyweight'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Leg raises', category: 'isolation', equipment: ['bodyweight', 'gym'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'intermediate' },
+  { name: 'Hanging leg raises', category: 'isolation', equipment: ['gym', 'home_full'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'advanced' },
+  { name: 'Ab rollout', category: 'isolation', equipment: ['gym', 'home_basic'], primaryMuscles: ['core'], secondaryMuscles: ['shoulders'], difficulty: 'intermediate' },
+  { name: 'Cable woodchops', category: 'isolation', equipment: ['gym'], primaryMuscles: ['core'], secondaryMuscles: [], difficulty: 'intermediate' },
+  { name: 'Mountain climbers', category: 'cardio', equipment: ['bodyweight'], primaryMuscles: ['core'], secondaryMuscles: ['legs', 'shoulders'], difficulty: 'beginner' },
+  
+  // Cardio øvelser
+  { name: 'Løping', category: 'cardio', equipment: ['gym', 'bodyweight'], primaryMuscles: ['legs'], secondaryMuscles: ['core'], difficulty: 'beginner', avoidWithInjuries: ['Kneproblemer', 'Ankelskade'] },
+  { name: 'Sykling', category: 'cardio', equipment: ['gym'], primaryMuscles: ['legs'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Romaskin', category: 'cardio', equipment: ['gym'], primaryMuscles: ['back', 'legs'], secondaryMuscles: ['arms', 'core'], difficulty: 'beginner' },
+  { name: 'Burpees', category: 'cardio', equipment: ['bodyweight'], primaryMuscles: ['legs'], secondaryMuscles: ['chest', 'core'], difficulty: 'intermediate' },
+  { name: 'Jumping jacks', category: 'cardio', equipment: ['bodyweight'], primaryMuscles: ['legs'], secondaryMuscles: [], difficulty: 'beginner' },
+  { name: 'Jump rope', category: 'cardio', equipment: ['home_basic', 'gym'], primaryMuscles: ['legs'], secondaryMuscles: ['core'], difficulty: 'beginner', avoidWithInjuries: ['Kneproblemer', 'Ankelskade'] },
+  { name: 'Box jumps', category: 'cardio', equipment: ['gym'], primaryMuscles: ['legs', 'glutes'], secondaryMuscles: ['core'], difficulty: 'intermediate', avoidWithInjuries: ['Kneproblemer'] },
+  { name: 'Battle ropes', category: 'cardio', equipment: ['gym'], primaryMuscles: ['arms', 'shoulders'], secondaryMuscles: ['core'], difficulty: 'intermediate' },
+  { name: 'Kettlebell swings', category: 'cardio', equipment: ['gym', 'home_basic', 'home_full'], primaryMuscles: ['glutes', 'legs'], secondaryMuscles: ['core', 'back'], difficulty: 'intermediate', avoidWithInjuries: ['Ryggproblemer'] },
+];
+
+// Avansert planlegger
+interface PlanConfig {
+  goal: TrainingPlan['goal'];
+  daysPerWeek: number;
+  experienceLevel: UserProfile['experienceLevel'];
+  equipment: string[];
+  focusAreas: string[];
+  injuries: string[];
+  duration: number;
+  preferences: {
+    preferCardio: boolean;
+    preferHIIT: boolean;
+    preferStrength: boolean;
+    preferFlexibility: boolean;
   };
+}
 
-  // Tilpass sett/reps basert på mål
-  const adjustForGoal = (ex: { name: string; sets: number; reps: string }) => {
-    if (goal === 'strength') return { ...ex, sets: ex.sets + 1, reps: '4-6' };
-    if (goal === 'muscle') return { ...ex, reps: '8-12' };
-    if (goal === 'weightloss') return { ...ex, sets: 3, reps: '12-15' };
-    return ex;
-  };
+const generateAdvancedPlan = (config: PlanConfig): TrainingDay[] => {
+  const { goal, daysPerWeek, experienceLevel = 'beginner', equipment, focusAreas, injuries, duration, preferences } = config;
+  
+  // Filtrer øvelser basert på utstyr og skader
+  const availableExercises = EXERCISE_DATABASE.filter(ex => {
+    // Sjekk utstyr
+    const hasEquipment = ex.equipment.some(eq => equipment.includes(eq));
+    if (!hasEquipment) return false;
+    
+    // Sjekk skader
+    if (ex.avoidWithInjuries) {
+      const hasConflict = ex.avoidWithInjuries.some(injury => injuries.includes(injury));
+      if (hasConflict) return false;
+    }
+    
+    // Sjekk vanskelighetsgrad
+    if (experienceLevel === 'beginner' && ex.difficulty === 'advanced') return false;
+    if (experienceLevel === 'intermediate' && ex.difficulty === 'advanced') {
+      // 50% sjanse for å inkludere avanserte øvelser for mellomliggende
+      return Math.random() > 0.5;
+    }
+    
+    return true;
+  });
 
-  const plans: Record<number, string[][]> = {
-    2: [['fullbody'], ['fullbody']],
-    3: [['push'], ['pull'], ['legs']],
-    4: [['upper'], ['lower'], ['push'], ['pull']],
-    5: [['push'], ['pull'], ['legs'], ['upper'], ['cardio']],
-    6: [['push'], ['pull'], ['legs'], ['push'], ['pull'], ['legs']],
-  };
-
-  const template = plans[daysPerWeek] || plans[3];
-  const dayNames = ['Push', 'Pull', 'Ben', 'Overkropp', 'Underkropp', 'Helkropp', 'Cardio'];
-
-  return template.map((types, i) => {
-    const dayExercises = types.flatMap(t => 
-      (exercises[t] || exercises.fullbody).map(e => ({
-        ...adjustForGoal(e),
-        restSeconds: goal === 'strength' ? 180 : goal === 'weightloss' ? 60 : 90,
-      }))
+  // Hjelpefunksjon for å velge øvelser
+  const selectExercises = (muscles: string[], count: number, includeIsolation: boolean = true): ExerciseDefinition[] => {
+    const filtered = availableExercises.filter(ex => 
+      muscles.some(m => ex.primaryMuscles.includes(m))
     );
     
-    const getName = () => {
-      if (types.includes('push')) return 'Push dag';
-      if (types.includes('pull')) return 'Pull dag';
-      if (types.includes('legs')) return 'Ben dag';
-      if (types.includes('upper')) return 'Overkropp';
-      if (types.includes('lower')) return 'Underkropp';
-      if (types.includes('cardio')) return 'Cardio';
-      return 'Helkropp';
-    };
+    const compounds = filtered.filter(ex => ex.category === 'compound');
+    const isolations = filtered.filter(ex => ex.category === 'isolation');
+    
+    const selected: ExerciseDefinition[] = [];
+    
+    // Prioriter sammensatte øvelser
+    const compoundCount = includeIsolation ? Math.ceil(count * 0.6) : count;
+    const shuffledCompounds = [...compounds].sort(() => Math.random() - 0.5);
+    selected.push(...shuffledCompounds.slice(0, compoundCount));
+    
+    // Legg til isolasjonsøvelser
+    if (includeIsolation && isolations.length > 0) {
+      const isolationCount = count - selected.length;
+      const shuffledIsolations = [...isolations].sort(() => Math.random() - 0.5);
+      selected.push(...shuffledIsolations.slice(0, isolationCount));
+    }
+    
+    return selected.slice(0, count);
+  };
 
+  // Beregn sett/reps basert på mål og erfaring
+  const getSetsReps = (exercise: ExerciseDefinition): { sets: number; reps: string; restSeconds: number } => {
+    let sets = 3;
+    let reps = '8-12';
+    let restSeconds = 90;
+    
+    // Juster for mål
+    switch (goal) {
+      case 'strength':
+        sets = experienceLevel === 'beginner' ? 4 : 5;
+        reps = '4-6';
+        restSeconds = 180;
+        break;
+      case 'muscle':
+        sets = experienceLevel === 'beginner' ? 3 : 4;
+        reps = '8-12';
+        restSeconds = 90;
+        break;
+      case 'weightloss':
+        sets = 3;
+        reps = '12-15';
+        restSeconds = 45;
+        break;
+      case 'fitness':
+        sets = 3;
+        reps = '10-15';
+        restSeconds = 60;
+        break;
+    }
+    
+    // Juster for øvelsestype
+    if (exercise.category === 'isolation') {
+      sets = Math.max(2, sets - 1);
+      reps = goal === 'strength' ? '8-12' : '12-15';
+    }
+    
+    if (exercise.category === 'cardio') {
+      return { sets: 1, reps: duration >= 60 ? '15-20 min' : '10-15 min', restSeconds: 60 };
+    }
+    
+    // Juster for erfaring
+    if (experienceLevel === 'beginner') {
+      sets = Math.max(2, sets - 1);
+    }
+    
+    return { sets, reps, restSeconds };
+  };
+
+  // Velg treningssplit basert på dager
+  const getSplit = (): string[][] => {
+    const hasFocusAreas = focusAreas.length > 0;
+    
+    // Muskelmapping for fokusområder
+    const focusMuscles = focusAreas.flatMap(area => {
+      switch (area) {
+        case 'chest': return ['chest'];
+        case 'back': return ['back'];
+        case 'shoulders': return ['shoulders'];
+        case 'arms': return ['biceps', 'triceps'];
+        case 'legs': return ['legs'];
+        case 'core': return ['core'];
+        case 'glutes': return ['glutes'];
+        default: return [];
+      }
+    });
+    
+    // Splits basert på dager og preferanser
+    if (daysPerWeek <= 2) {
+      return [['fullbody'], ['fullbody']].slice(0, daysPerWeek);
+    }
+    
+    if (daysPerWeek === 3) {
+      if (hasFocusAreas && focusMuscles.length <= 3) {
+        // Fokusert split
+        return [
+          ['push', ...focusMuscles],
+          ['pull', ...focusMuscles],
+          ['legs', 'core']
+        ];
+      }
+      return [['push'], ['pull'], ['legs']];
+    }
+    
+    if (daysPerWeek === 4) {
+      if (preferences.preferCardio || goal === 'weightloss') {
+        return [['upper'], ['lower'], ['push', 'cardio'], ['pull', 'cardio']];
+      }
+      return [['upper'], ['lower'], ['push'], ['pull']];
+    }
+    
+    if (daysPerWeek === 5) {
+      if (hasFocusAreas) {
+        const focusDay = focusMuscles.length > 0 ? [focusMuscles.slice(0, 3).join('_')] : ['arms'];
+        return [['push'], ['pull'], ['legs'], ['upper'], focusDay];
+      }
+      if (preferences.preferCardio || goal === 'fitness') {
+        return [['push'], ['pull'], ['legs'], ['upper', 'cardio'], ['lower', 'cardio']];
+      }
+      return [['chest', 'triceps'], ['back', 'biceps'], ['legs'], ['shoulders', 'arms'], ['fullbody']];
+    }
+    
+    // 6 dager
+    if (goal === 'weightloss' || preferences.preferHIIT) {
+      return [['push'], ['pull'], ['legs', 'cardio'], ['push'], ['pull'], ['legs', 'cardio']];
+    }
+    return [['push'], ['pull'], ['legs'], ['chest', 'shoulders'], ['back', 'arms'], ['legs', 'glutes']];
+  };
+
+  const split = getSplit();
+  
+  // Generer treningsdager
+  return split.map((dayTypes, i) => {
+    let exercises: { name: string; sets: number; reps: string; restSeconds: number }[] = [];
+    let dayName = '';
+    
+    // Beregn antall øvelser basert på varighet
+    const exerciseTime = goal === 'strength' ? 8 : goal === 'weightloss' ? 4 : 6; // minutter per øvelse
+    const warmupTime = 5;
+    const maxExercises = Math.floor((duration - warmupTime) / exerciseTime);
+    
+    // Bygg øvelser for dagen
+    dayTypes.forEach(type => {
+      let selectedExercises: ExerciseDefinition[] = [];
+      
+      switch (type) {
+        case 'push':
+          selectedExercises = selectExercises(['chest', 'shoulders', 'triceps'], Math.min(5, maxExercises));
+          dayName = 'Push dag';
+          break;
+        case 'pull':
+          selectedExercises = selectExercises(['back', 'biceps'], Math.min(5, maxExercises));
+          dayName = 'Pull dag';
+          break;
+        case 'legs':
+          selectedExercises = selectExercises(['legs', 'glutes'], Math.min(5, maxExercises));
+          dayName = 'Ben dag';
+          break;
+        case 'upper':
+          selectedExercises = selectExercises(['chest', 'back', 'shoulders', 'biceps', 'triceps'], Math.min(6, maxExercises));
+          dayName = 'Overkropp';
+          break;
+        case 'lower':
+          selectedExercises = selectExercises(['legs', 'glutes', 'core'], Math.min(5, maxExercises));
+          dayName = 'Underkropp';
+          break;
+        case 'fullbody':
+          selectedExercises = selectExercises(['chest', 'back', 'legs', 'shoulders'], Math.min(6, maxExercises));
+          dayName = 'Helkropp';
+          break;
+        case 'cardio':
+          const cardioExercises = availableExercises.filter(ex => ex.category === 'cardio');
+          selectedExercises = cardioExercises.sort(() => Math.random() - 0.5).slice(0, 3);
+          if (!dayName) dayName = 'Cardio';
+          break;
+        case 'chest':
+          selectedExercises.push(...selectExercises(['chest'], 3));
+          dayName = dayName || 'Bryst';
+          break;
+        case 'back':
+          selectedExercises.push(...selectExercises(['back'], 3));
+          dayName = dayName || 'Rygg';
+          break;
+        case 'shoulders':
+          selectedExercises.push(...selectExercises(['shoulders'], 2));
+          dayName = dayName || 'Skuldre';
+          break;
+        case 'arms':
+          selectedExercises.push(...selectExercises(['biceps', 'triceps'], 4, true));
+          dayName = dayName || 'Armer';
+          break;
+        case 'triceps':
+          selectedExercises.push(...selectExercises(['triceps'], 2));
+          break;
+        case 'biceps':
+          selectedExercises.push(...selectExercises(['biceps'], 2));
+          break;
+        case 'glutes':
+          selectedExercises.push(...selectExercises(['glutes'], 3));
+          dayName = dayName || 'Rumpe fokus';
+          break;
+        case 'core':
+          selectedExercises.push(...selectExercises(['core'], 3));
+          break;
+        default:
+          // Håndter fokusområder
+          if (type.includes('_')) {
+            const muscles = type.split('_');
+            selectedExercises = selectExercises(muscles, Math.min(5, maxExercises));
+            dayName = 'Fokus dag';
+          }
+      }
+      
+      exercises.push(...selectedExercises.map(ex => ({
+        name: ex.name,
+        ...getSetsReps(ex)
+      })));
+    });
+    
+    // Legg til core for de fleste dager hvis ikke allerede der
+    if (!dayTypes.includes('core') && !dayTypes.includes('fullbody') && Math.random() > 0.5) {
+      const coreExercises = selectExercises(['core'], 2, false);
+      exercises.push(...coreExercises.map(ex => ({
+        name: ex.name,
+        ...getSetsReps(ex)
+      })));
+    }
+    
+    // Begrens antall øvelser
+    exercises = exercises.slice(0, maxExercises);
+    
+    // Fjern duplikater
+    const uniqueExercises = exercises.filter((ex, index, self) => 
+      index === self.findIndex(e => e.name === ex.name)
+    );
+    
     return {
       dayNumber: i + 1,
-      name: getName(),
-      exercises: dayExercises,
+      name: dayName || `Dag ${i + 1}`,
+      exercises: uniqueExercises.length > 0 ? uniqueExercises : [
+        { name: 'Push-ups', sets: 3, reps: '10-15', restSeconds: 60 },
+        { name: 'Bodyweight squats', sets: 3, reps: '15-20', restSeconds: 60 },
+        { name: 'Plank', sets: 3, reps: '30-45 sek', restSeconds: 45 }
+      ],
     };
   });
-}
+};
+
+// Legacy wrapper for bakoverkompatibilitet
+const generatePlan = (goal: TrainingPlan['goal'], daysPerWeek: number): TrainingDay[] => {
+  return generateAdvancedPlan({
+    goal,
+    daysPerWeek,
+    experienceLevel: 'intermediate',
+    equipment: ['gym'],
+    focusAreas: [],
+    injuries: [],
+    duration: 60,
+    preferences: {
+      preferCardio: false,
+      preferHIIT: false,
+      preferStrength: true,
+      preferFlexibility: false,
+    }
+  });
+};
 
 const formatTime = (seconds: number): string => {
   const hrs = Math.floor(seconds / 3600);
@@ -149,6 +458,7 @@ export default function WorkoutTab({
   currentWorkout, setCurrentWorkout, workoutStartTime, setWorkoutStartTime,
   elapsedTime, setElapsedTime, isTimerRunning, setIsTimerRunning,
   trainingPlans, setTrainingPlans,
+  userProfile,
 }: WorkoutTabProps) {
   const [newExerciseName, setNewExerciseName] = useState('');
   const [showXPGain, setShowXPGain] = useState(false);
@@ -160,8 +470,24 @@ export default function WorkoutTab({
   
   // Treningsplan states
   const [showPlanGenerator, setShowPlanGenerator] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<TrainingPlan['goal']>('muscle');
-  const [selectedDays, setSelectedDays] = useState(3);
+  const [planStep, setPlanStep] = useState(1);
+  const [selectedGoal, setSelectedGoal] = useState<TrainingPlan['goal']>(
+    userProfile?.fitnessGoal === 'build_muscle' ? 'muscle' :
+    userProfile?.fitnessGoal === 'lose_weight' ? 'weightloss' :
+    userProfile?.fitnessGoal === 'improve_fitness' ? 'fitness' : 'muscle'
+  );
+  const [selectedDays, setSelectedDays] = useState(userProfile?.workoutsPerWeek || 3);
+  const [selectedExperience, setSelectedExperience] = useState<UserProfile['experienceLevel']>(userProfile?.experienceLevel || 'beginner');
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>(userProfile?.availableEquipment || ['gym']);
+  const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>(userProfile?.focusAreas || []);
+  const [selectedInjuries, setSelectedInjuries] = useState<string[]>(userProfile?.injuries || []);
+  const [selectedDuration, setSelectedDuration] = useState<30 | 45 | 60 | 90>(userProfile?.preferredWorkoutDuration || 45);
+  const [selectedPreferences, setSelectedPreferences] = useState({
+    preferCardio: userProfile?.trainingPreferences?.preferCardio || false,
+    preferHIIT: userProfile?.trainingPreferences?.preferHIIT || false,
+    preferStrength: userProfile?.trainingPreferences?.preferStrength || true,
+    preferFlexibility: userProfile?.trainingPreferences?.preferFlexibility || false,
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [viewingPlan, setViewingPlan] = useState<TrainingPlan | null>(null);
 
@@ -360,16 +686,31 @@ export default function WorkoutTab({
     setIsTimerRunning(false);
   };
 
-  // Generer AI treningsplan
+  // Generer AI treningsplan med alle parametre
   const generateAIPlan = () => {
     setIsGenerating(true);
     
     // Simuler AI-tenking
     setTimeout(() => {
-      const days = generatePlan(selectedGoal, selectedDays);
+      const days = generateAdvancedPlan({
+        goal: selectedGoal,
+        daysPerWeek: selectedDays,
+        experienceLevel: selectedExperience,
+        equipment: selectedEquipment,
+        focusAreas: selectedFocusAreas,
+        injuries: selectedInjuries,
+        duration: selectedDuration,
+        preferences: selectedPreferences,
+      });
+      
+      // Lag et beskrivende navn
+      const focusText = selectedFocusAreas.length > 0 
+        ? ` (${selectedFocusAreas.slice(0, 2).map(f => focusAreaLabels[f] || f).join(', ')} fokus)`
+        : '';
+      
       const newPlan: TrainingPlan = {
         id: Date.now().toString(),
-        name: `${goalLabels[selectedGoal]} - ${selectedDays} dager`,
+        name: `${goalLabels[selectedGoal]}${focusText} - ${selectedDays}x/uke`,
         goal: selectedGoal,
         daysPerWeek: selectedDays,
         days,
@@ -379,8 +720,29 @@ export default function WorkoutTab({
       setTrainingPlans([...trainingPlans, newPlan]);
       setIsGenerating(false);
       setShowPlanGenerator(false);
+      setPlanStep(1);
       setViewingPlan(newPlan);
-    }, 1500);
+    }, 2000);
+  };
+  
+  const planTotalSteps = 4;
+  
+  const toggleEquipment = (eq: string) => {
+    if (selectedEquipment.includes(eq)) {
+      if (selectedEquipment.length > 1) {
+        setSelectedEquipment(selectedEquipment.filter(e => e !== eq));
+      }
+    } else {
+      setSelectedEquipment([...selectedEquipment, eq]);
+    }
+  };
+  
+  const toggleFocusArea = (area: string) => {
+    if (selectedFocusAreas.includes(area)) {
+      setSelectedFocusAreas(selectedFocusAreas.filter(a => a !== area));
+    } else {
+      setSelectedFocusAreas([...selectedFocusAreas, area]);
+    }
   };
 
   // Start økt fra plan
@@ -416,86 +778,369 @@ export default function WorkoutTab({
 
   const volume = currentWorkout ? calculateWorkoutVolume(currentWorkout) : 0;
 
-  // Plan Generator Modal
+  // Plan Generator Modal - Multi-step
   if (showPlanGenerator) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
-        <div className="w-full max-w-sm bg-deep-purple rounded-2xl p-6">
-          <div className="flex justify-between items-center mb-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
+        <div className="w-full max-w-md bg-deep-purple rounded-2xl p-6 my-4">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
               <Brain className="text-electric" size={24} />
               <h2 className="text-xl font-bold">AI Treningsplan</h2>
             </div>
-            <button onClick={() => setShowPlanGenerator(false)} className="p-2">
+            <button onClick={() => { setShowPlanGenerator(false); setPlanStep(1); }} className="p-2">
               <X size={20} />
             </button>
           </div>
+          
+          {/* Progress */}
+          <div className="flex gap-1 mb-6">
+            {Array.from({ length: planTotalSteps }).map((_, i) => (
+              <div 
+                key={i}
+                className={`flex-1 h-1 rounded-full transition-all ${
+                  i < planStep ? 'bg-electric' : 'bg-white/20'
+                }`}
+              />
+            ))}
+          </div>
 
-          <div className="space-y-6">
-            {/* Mål */}
-            <div>
-              <p className="text-soft-white/60 text-sm mb-3">Hva er målet ditt?</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(['muscle', 'strength', 'weightloss', 'fitness'] as const).map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setSelectedGoal(g)}
-                    className={`p-3 rounded-xl border-2 transition-all ${
-                      selectedGoal === g 
-                        ? 'border-electric bg-electric/10 text-electric' 
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    <span className="text-2xl mb-1 block">
-                      {g === 'muscle' && '💪'}
-                      {g === 'strength' && '🏋️'}
-                      {g === 'weightloss' && '🔥'}
-                      {g === 'fitness' && '🏃'}
-                    </span>
-                    <span className="text-sm">{goalLabels[g]}</span>
-                  </button>
-                ))}
+          {/* Step 1: Mål og erfaring */}
+          {planStep === 1 && (
+            <div className="space-y-5 animate-fadeInUp">
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Target size={18} className="text-coral" />
+                  Hva er hovedmålet ditt?
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['muscle', 'strength', 'weightloss', 'fitness'] as const).map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setSelectedGoal(g)}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        selectedGoal === g 
+                          ? 'border-electric bg-electric/10 text-electric' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="text-2xl mb-1 block">
+                        {g === 'muscle' && '💪'}
+                        {g === 'strength' && '🏋️'}
+                        {g === 'weightloss' && '🔥'}
+                        {g === 'fitness' && '🏃'}
+                      </span>
+                      <span className="text-sm">{goalLabels[g]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Dumbbell size={18} className="text-purple-400" />
+                  Ditt erfaringsnivå
+                </p>
+                <div className="space-y-2">
+                  {([
+                    { level: 'beginner' as const, emoji: '🌱', label: 'Nybegynner', desc: 'Under 6 mnd erfaring' },
+                    { level: 'intermediate' as const, emoji: '💪', label: 'Middels', desc: '6 mnd - 2 år erfaring' },
+                    { level: 'advanced' as const, emoji: '🏆', label: 'Avansert', desc: 'Over 2 år erfaring' },
+                  ]).map(({ level, emoji, label, desc }) => (
+                    <button
+                      key={level}
+                      onClick={() => setSelectedExperience(level)}
+                      className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center gap-3 ${
+                        selectedExperience === level 
+                          ? 'border-purple-400 bg-purple-400/10' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="text-xl">{emoji}</span>
+                      <div>
+                        <p className="font-medium">{label}</p>
+                        <p className="text-xs text-soft-white/50">{desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Dager per uke */}
-            <div>
-              <p className="text-soft-white/60 text-sm mb-3">Hvor mange dager per uke?</p>
-              <div className="flex gap-2">
-                {[2, 3, 4, 5, 6].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setSelectedDays(d)}
-                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${
-                      selectedDays === d 
-                        ? 'border-electric bg-electric/10 text-electric' 
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
+          {/* Step 2: Utstyr og frekvens */}
+          {planStep === 2 && (
+            <div className="space-y-5 animate-fadeInUp">
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Dumbbell size={18} className="text-orange-400" />
+                  Tilgjengelig utstyr
+                </p>
+                <div className="space-y-2">
+                  {([
+                    { id: 'gym', emoji: '🏋️', label: 'Treningssenter' },
+                    { id: 'home_full', emoji: '🏠', label: 'Hjemmegym (fullt)' },
+                    { id: 'home_basic', emoji: '🎯', label: 'Hjemmegym (basis)' },
+                    { id: 'bodyweight', emoji: '🤸', label: 'Kun kroppsvekt' },
+                  ]).map(({ id, emoji, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => toggleEquipment(id)}
+                      className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                        selectedEquipment.includes(id)
+                          ? 'border-orange-400 bg-orange-400/10' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{emoji}</span>
+                        <span className="font-medium">{label}</span>
+                      </div>
+                      {selectedEquipment.includes(id) && (
+                        <div className="w-5 h-5 rounded-full bg-orange-400 flex items-center justify-center">
+                          <Check size={12} className="text-midnight" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Calendar size={18} className="text-cyan-400" />
+                  Treningsdager per uke
+                </p>
+                <div className="flex gap-2">
+                  {[2, 3, 4, 5, 6].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSelectedDays(d)}
+                      className={`flex-1 py-4 rounded-xl border-2 font-bold transition-all ${
+                        selectedDays === d 
+                          ? 'border-cyan-400 bg-cyan-400/10 text-cyan-400' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <p className="text-xl">{d}</p>
+                      <p className="text-xs text-soft-white/50">dager</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Clock size={18} className="text-green-400" />
+                  Tid per økt
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {([30, 45, 60, 90] as const).map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => setSelectedDuration(mins)}
+                      className={`py-3 rounded-xl border-2 transition-all ${
+                        selectedDuration === mins 
+                          ? 'border-green-400 bg-green-400/10 text-green-400' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <p className="font-bold">{mins}</p>
+                      <p className="text-xs text-soft-white/50">min</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Generer knapp */}
-            <button
-              onClick={generateAIPlan}
-              disabled={isGenerating}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-2"
-            >
-              {isGenerating ? (
-                <>
-                  <Sparkles className="animate-spin" size={20} />
-                  Genererer...
-                </>
-              ) : (
-                <>
-                  <Brain size={20} />
-                  Generer plan
-                </>
-              )}
-            </button>
+          {/* Step 3: Fokusområder */}
+          {planStep === 3 && (
+            <div className="space-y-5 animate-fadeInUp">
+              <div>
+                <p className="text-soft-white/80 font-medium mb-2 flex items-center gap-2">
+                  <Target size={18} className="text-pink-400" />
+                  Fokusområder (valgfritt)
+                </p>
+                <p className="text-soft-white/50 text-sm mb-3">Velg 1-3 områder du vil fokusere ekstra på</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: 'chest', emoji: '💪', label: 'Bryst' },
+                    { id: 'back', emoji: '🔙', label: 'Rygg' },
+                    { id: 'shoulders', emoji: '🎯', label: 'Skuldre' },
+                    { id: 'arms', emoji: '💪', label: 'Armer' },
+                    { id: 'legs', emoji: '🦵', label: 'Ben' },
+                    { id: 'core', emoji: '🔥', label: 'Mage' },
+                    { id: 'glutes', emoji: '🍑', label: 'Rumpe' },
+                  ]).map(({ id, emoji, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => toggleFocusArea(id)}
+                      disabled={selectedFocusAreas.length >= 3 && !selectedFocusAreas.includes(id)}
+                      className={`p-3 rounded-xl border-2 transition-all flex items-center gap-2 ${
+                        selectedFocusAreas.includes(id)
+                          ? 'border-pink-400 bg-pink-400/10' 
+                          : selectedFocusAreas.length >= 3
+                          ? 'border-white/5 opacity-40'
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="text-lg">{emoji}</span>
+                      <span className="font-medium text-sm">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-soft-white/80 font-medium mb-2 flex items-center gap-2">
+                  <AlertTriangle size={18} className="text-yellow-400" />
+                  Skader/begrensninger
+                </p>
+                <p className="text-soft-white/50 text-sm mb-3">Vi tilpasser øvelser for å unngå problemer</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Ryggproblemer',
+                    'Kneproblemer', 
+                    'Skulderproblemer',
+                    'Nakkesmerter',
+                    'Håndleddsskade',
+                    'Ankelskade',
+                  ].map((injury) => (
+                    <button
+                      key={injury}
+                      onClick={() => {
+                        if (selectedInjuries.includes(injury)) {
+                          setSelectedInjuries(selectedInjuries.filter(i => i !== injury));
+                        } else {
+                          setSelectedInjuries([...selectedInjuries, injury]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-all ${
+                        selectedInjuries.includes(injury)
+                          ? 'bg-yellow-500/20 border border-yellow-400 text-yellow-400' 
+                          : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {injury}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Treningspreferanser og oppsummering */}
+          {planStep === 4 && (
+            <div className="space-y-5 animate-fadeInUp">
+              <div>
+                <p className="text-soft-white/80 font-medium mb-3 flex items-center gap-2">
+                  <Flame size={18} className="text-red-400" />
+                  Treningspreferanser
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: 'preferStrength', emoji: '🏋️', label: 'Styrke' },
+                    { id: 'preferCardio', emoji: '🏃', label: 'Cardio' },
+                    { id: 'preferHIIT', emoji: '⚡', label: 'HIIT' },
+                    { id: 'preferFlexibility', emoji: '🧘', label: 'Stretch' },
+                  ] as const).map(({ id, emoji, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => setSelectedPreferences({ 
+                        ...selectedPreferences, 
+                        [id]: !selectedPreferences[id] 
+                      })}
+                      className={`p-3 rounded-xl border-2 transition-all flex items-center gap-2 ${
+                        selectedPreferences[id]
+                          ? 'border-red-400 bg-red-400/10' 
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="text-lg">{emoji}</span>
+                      <span className="font-medium text-sm">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Oppsummering */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <p className="text-soft-white/80 font-medium mb-3">Din personlige plan:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-soft-white/60">Mål</span>
+                    <span className="font-medium">{goalLabels[selectedGoal]}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-soft-white/60">Erfaring</span>
+                    <span className="font-medium">{experienceLevelLabels[selectedExperience || 'beginner']}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-soft-white/60">Frekvens</span>
+                    <span className="font-medium">{selectedDays} dager/uke</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-soft-white/60">Varighet</span>
+                    <span className="font-medium">{selectedDuration} min/økt</span>
+                  </div>
+                  {selectedFocusAreas.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-soft-white/60">Fokus</span>
+                      <span className="font-medium text-pink-400">
+                        {selectedFocusAreas.map(f => focusAreaLabels[f] || f).join(', ')}
+                      </span>
+                    </div>
+                  )}
+                  {selectedInjuries.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-soft-white/60">Tilpasset for</span>
+                      <span className="font-medium text-yellow-400">{selectedInjuries.length} begrensning(er)</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3 mt-6">
+            {planStep > 1 && (
+              <button
+                onClick={() => setPlanStep(planStep - 1)}
+                className="px-4 py-3 rounded-xl bg-white/10 font-medium"
+              >
+                Tilbake
+              </button>
+            )}
+            
+            {planStep < planTotalSteps ? (
+              <button
+                onClick={() => setPlanStep(planStep + 1)}
+                className="flex-1 py-3 rounded-xl bg-electric text-midnight font-bold"
+              >
+                Neste
+              </button>
+            ) : (
+              <button
+                onClick={generateAIPlan}
+                disabled={isGenerating}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold flex items-center justify-center gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <Sparkles className="animate-spin" size={20} />
+                    Analyserer...
+                  </>
+                ) : (
+                  <>
+                    <Brain size={20} />
+                    Generer min plan
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

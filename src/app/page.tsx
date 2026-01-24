@@ -166,6 +166,7 @@ export default function Home() {
             setIsTimerRunning={setIsTimerRunning}
             trainingPlans={trainingPlans}
             setTrainingPlans={setTrainingPlans}
+            userProfile={profile}
           />
         );
       case 'progress':
