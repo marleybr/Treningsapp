@@ -1,17 +1,37 @@
 export async function onRequestPost(context) {
+  // Add CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json',
+  };
+
   try {
     const { request, env } = context;
-    const { image } = await request.json();
+    
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+        status: 400,
+        headers: corsHeaders,
+      });
+    }
+    
+    const { image } = body;
 
     if (!image) {
       return new Response(JSON.stringify({ error: 'No image provided' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     }
 
-    // Check for OpenAI API key
-    const apiKey = env.OPENAI_API_KEY;
+    // Check for OpenAI API key - try multiple ways to access it
+    const apiKey = env.OPENAI_API_KEY || context.env?.OPENAI_API_KEY;
+    
+    // Debug: Log available env keys (remove in production)
+    console.log('Environment keys:', Object.keys(env || {}));
 
     if (!apiKey) {
       // Return demo data if no API key is configured
@@ -27,10 +47,10 @@ export async function onRequestPost(context) {
           totalCarbs: 30,
           totalFat: 15,
           confidence: 'medium',
-          description: 'For å aktivere AI-analyse, legg til OPENAI_API_KEY i miljøvariabler.',
+          description: 'API-nøkkel ikke funnet. Sjekk at OPENAI_API_KEY er lagt til som Secret i Cloudflare.',
         }
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     }
 
@@ -96,9 +116,9 @@ export async function onRequestPost(context) {
     if (!response.ok) {
       const error = await response.text();
       console.error('OpenAI API error:', error);
-      return new Response(JSON.stringify({ error: 'Failed to analyze image' }), {
+      return new Response(JSON.stringify({ error: 'Failed to analyze image', details: error }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     }
 
@@ -108,7 +128,7 @@ export async function onRequestPost(context) {
     if (!content) {
       return new Response(JSON.stringify({ error: 'No analysis returned' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     }
 
@@ -125,7 +145,7 @@ export async function onRequestPost(context) {
         success: true,
         analysis,
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
@@ -134,15 +154,26 @@ export async function onRequestPost(context) {
         raw: content 
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       });
     }
 
   } catch (error) {
     console.error('Error analyzing food:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ error: 'Internal server error', message: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+}
+
+// Handle OPTIONS for CORS preflight
+export async function onRequestOptions() {
+  return new Response(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }
