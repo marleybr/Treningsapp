@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play, Target, AlertTriangle, Flame } from 'lucide-react';
-import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels, UserProfile, experienceLevelLabels, focusAreaLabels } from '@/types';
+import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play, Target, AlertTriangle, Flame, Pencil, Trash2, GripVertical, Save, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels, UserProfile, experienceLevelLabels, focusAreaLabels, PlannedExercise } from '@/types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -490,6 +490,14 @@ export default function WorkoutTab({
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [viewingPlan, setViewingPlan] = useState<TrainingPlan | null>(null);
+  
+  // Plan editing states
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [editingPlanName, setEditingPlanName] = useState('');
+  const [editingDays, setEditingDays] = useState<TrainingDay[]>([]);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [showExercisePicker, setShowExercisePicker] = useState<number | null>(null);
+  const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
 
   // Quick start - ett klikk
   const quickStart = () => {
@@ -743,6 +751,130 @@ export default function WorkoutTab({
     } else {
       setSelectedFocusAreas([...selectedFocusAreas, area]);
     }
+  };
+
+  // Plan editing functions
+  const startEditingPlan = () => {
+    if (!viewingPlan) return;
+    setEditingPlanName(viewingPlan.name);
+    setEditingDays(JSON.parse(JSON.stringify(viewingPlan.days))); // Deep copy
+    setIsEditingPlan(true);
+    setExpandedDay(0);
+  };
+
+  const savePlanEdits = () => {
+    if (!viewingPlan) return;
+    const updatedPlan: TrainingPlan = {
+      ...viewingPlan,
+      name: editingPlanName,
+      days: editingDays,
+      daysPerWeek: editingDays.length,
+    };
+    setTrainingPlans(trainingPlans.map(p => p.id === viewingPlan.id ? updatedPlan : p));
+    setViewingPlan(updatedPlan);
+    setIsEditingPlan(false);
+  };
+
+  const cancelPlanEdits = () => {
+    setIsEditingPlan(false);
+    setEditingDays([]);
+    setEditingPlanName('');
+  };
+
+  const updateDayName = (dayIndex: number, name: string) => {
+    const newDays = [...editingDays];
+    newDays[dayIndex] = { ...newDays[dayIndex], name };
+    setEditingDays(newDays);
+  };
+
+  const updateExercise = (dayIndex: number, exerciseIndex: number, field: keyof PlannedExercise, value: string | number) => {
+    const newDays = [...editingDays];
+    newDays[dayIndex] = {
+      ...newDays[dayIndex],
+      exercises: newDays[dayIndex].exercises.map((ex, i) => 
+        i === exerciseIndex ? { ...ex, [field]: value } : ex
+      ),
+    };
+    setEditingDays(newDays);
+  };
+
+  const removeExerciseFromPlan = (dayIndex: number, exerciseIndex: number) => {
+    const newDays = [...editingDays];
+    newDays[dayIndex] = {
+      ...newDays[dayIndex],
+      exercises: newDays[dayIndex].exercises.filter((_, i) => i !== exerciseIndex),
+    };
+    setEditingDays(newDays);
+  };
+
+  const addExerciseToPlan = (dayIndex: number, exercise: ExerciseDefinition) => {
+    const newDays = [...editingDays];
+    const newExercise: PlannedExercise = {
+      name: exercise.name,
+      sets: 3,
+      reps: exercise.category === 'cardio' ? '10-15 min' : '8-12',
+      restSeconds: 90,
+    };
+    newDays[dayIndex] = {
+      ...newDays[dayIndex],
+      exercises: [...newDays[dayIndex].exercises, newExercise],
+    };
+    setEditingDays(newDays);
+    setShowExercisePicker(null);
+    setExerciseSearchQuery('');
+  };
+
+  const moveExerciseInPlan = (dayIndex: number, exerciseIndex: number, direction: 'up' | 'down') => {
+    const newDays = [...editingDays];
+    const exercises = [...newDays[dayIndex].exercises];
+    const newIndex = direction === 'up' ? exerciseIndex - 1 : exerciseIndex + 1;
+    
+    if (newIndex < 0 || newIndex >= exercises.length) return;
+    
+    [exercises[exerciseIndex], exercises[newIndex]] = [exercises[newIndex], exercises[exerciseIndex]];
+    newDays[dayIndex] = { ...newDays[dayIndex], exercises };
+    setEditingDays(newDays);
+  };
+
+  const addNewDay = () => {
+    const newDay: TrainingDay = {
+      dayNumber: editingDays.length + 1,
+      name: `Dag ${editingDays.length + 1}`,
+      exercises: [],
+    };
+    setEditingDays([...editingDays, newDay]);
+    setExpandedDay(editingDays.length);
+  };
+
+  const removeDay = (dayIndex: number) => {
+    if (editingDays.length <= 1) return;
+    const newDays = editingDays
+      .filter((_, i) => i !== dayIndex)
+      .map((day, i) => ({ ...day, dayNumber: i + 1 }));
+    setEditingDays(newDays);
+    if (expandedDay === dayIndex) setExpandedDay(null);
+    else if (expandedDay !== null && expandedDay > dayIndex) setExpandedDay(expandedDay - 1);
+  };
+
+  const duplicateDay = (dayIndex: number) => {
+    const dayToCopy = editingDays[dayIndex];
+    const newDay: TrainingDay = {
+      ...JSON.parse(JSON.stringify(dayToCopy)),
+      dayNumber: editingDays.length + 1,
+      name: `${dayToCopy.name} (kopi)`,
+    };
+    setEditingDays([...editingDays, newDay]);
+  };
+
+  // Get filtered exercises for picker
+  const getFilteredExercises = () => {
+    if (!exerciseSearchQuery.trim()) {
+      return EXERCISE_DATABASE.slice(0, 20);
+    }
+    return EXERCISE_DATABASE.filter(ex => 
+      ex.name.toLowerCase().includes(exerciseSearchQuery.toLowerCase()) ||
+      ex.primaryMuscles.some(m => m.toLowerCase().includes(exerciseSearchQuery.toLowerCase()))
+    ).slice(0, 20);
   };
 
   // Start økt fra plan
@@ -1147,8 +1279,228 @@ export default function WorkoutTab({
     );
   }
 
-  // Viewing Plan Modal
+  // Viewing/Editing Plan Modal
   if (viewingPlan) {
+    // Edit Mode
+    if (isEditingPlan) {
+      return (
+        <div className="space-y-4 pb-24">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <button onClick={cancelPlanEdits} className="text-soft-white/60 flex items-center gap-1">
+              <X size={20} />
+              Avbryt
+            </button>
+            <button 
+              onClick={savePlanEdits}
+              className="px-4 py-2 rounded-xl bg-neon-green text-midnight font-semibold flex items-center gap-2"
+            >
+              <Save size={16} />
+              Lagre
+            </button>
+          </div>
+
+          {/* Plan Name */}
+          <div className="p-4 rounded-2xl bg-white/5">
+            <label className="text-soft-white/60 text-sm">Plannavn</label>
+            <input
+              type="text"
+              value={editingPlanName}
+              onChange={(e) => setEditingPlanName(e.target.value)}
+              className="w-full mt-1 px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:border-electric outline-none text-lg font-bold"
+            />
+          </div>
+
+          {/* Days */}
+          <div className="space-y-3">
+            {editingDays.map((day, dayIndex) => (
+              <div key={dayIndex} className="rounded-2xl bg-white/5 overflow-hidden">
+                {/* Day Header */}
+                <button
+                  onClick={() => setExpandedDay(expandedDay === dayIndex ? null : dayIndex)}
+                  className="w-full p-4 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-electric text-sm font-mono">Dag {dayIndex + 1}</span>
+                    <input
+                      type="text"
+                      value={day.name}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        updateDayName(dayIndex, e.target.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-transparent border-b border-white/20 focus:border-electric outline-none font-bold"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-soft-white/40 text-sm">{day.exercises.length} øvelser</span>
+                    {expandedDay === dayIndex ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </button>
+
+                {/* Expanded Day Content */}
+                {expandedDay === dayIndex && (
+                  <div className="px-4 pb-4 space-y-2">
+                    {/* Exercises */}
+                    {day.exercises.map((ex, exIndex) => (
+                      <div key={exIndex} className="p-3 rounded-xl bg-white/5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          {/* Move buttons */}
+                          <div className="flex flex-col gap-0.5">
+                            <button 
+                              onClick={() => moveExerciseInPlan(dayIndex, exIndex, 'up')}
+                              disabled={exIndex === 0}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20"
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button 
+                              onClick={() => moveExerciseInPlan(dayIndex, exIndex, 'down')}
+                              disabled={exIndex === day.exercises.length - 1}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          
+                          {/* Exercise name */}
+                          <input
+                            type="text"
+                            value={ex.name}
+                            onChange={(e) => updateExercise(dayIndex, exIndex, 'name', e.target.value)}
+                            className="flex-1 bg-transparent border-b border-white/10 focus:border-electric outline-none font-medium"
+                          />
+                          
+                          {/* Delete button */}
+                          <button 
+                            onClick={() => removeExerciseFromPlan(dayIndex, exIndex)}
+                            className="p-2 text-coral hover:bg-coral/20 rounded-lg"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        
+                        {/* Sets & Reps */}
+                        <div className="flex gap-3 pl-8">
+                          <div className="flex items-center gap-2">
+                            <label className="text-soft-white/50 text-xs">Sett:</label>
+                            <input
+                              type="number"
+                              value={ex.sets}
+                              onChange={(e) => updateExercise(dayIndex, exIndex, 'sets', parseInt(e.target.value) || 1)}
+                              className="w-14 px-2 py-1 rounded-lg bg-white/10 text-center text-sm border border-white/10 focus:border-electric outline-none"
+                              min="1"
+                              max="10"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-soft-white/50 text-xs">Reps:</label>
+                            <input
+                              type="text"
+                              value={ex.reps}
+                              onChange={(e) => updateExercise(dayIndex, exIndex, 'reps', e.target.value)}
+                              className="w-20 px-2 py-1 rounded-lg bg-white/10 text-center text-sm border border-white/10 focus:border-electric outline-none"
+                              placeholder="8-12"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-soft-white/50 text-xs">Hvile:</label>
+                            <input
+                              type="number"
+                              value={ex.restSeconds}
+                              onChange={(e) => updateExercise(dayIndex, exIndex, 'restSeconds', parseInt(e.target.value) || 60)}
+                              className="w-16 px-2 py-1 rounded-lg bg-white/10 text-center text-sm border border-white/10 focus:border-electric outline-none"
+                              min="0"
+                              step="15"
+                            />
+                            <span className="text-soft-white/50 text-xs">sek</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add Exercise Button / Picker */}
+                    {showExercisePicker === dayIndex ? (
+                      <div className="p-3 rounded-xl bg-white/10 border border-electric/50">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Search size={18} className="text-soft-white/50" />
+                          <input
+                            type="text"
+                            value={exerciseSearchQuery}
+                            onChange={(e) => setExerciseSearchQuery(e.target.value)}
+                            placeholder="Søk etter øvelse..."
+                            className="flex-1 bg-transparent outline-none"
+                            autoFocus
+                          />
+                          <button 
+                            onClick={() => { setShowExercisePicker(null); setExerciseSearchQuery(''); }}
+                            className="p-1 hover:bg-white/10 rounded"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-1">
+                          {getFilteredExercises().map((ex, i) => (
+                            <button
+                              key={i}
+                              onClick={() => addExerciseToPlan(dayIndex, ex)}
+                              className="w-full p-2 rounded-lg hover:bg-white/10 text-left flex items-center justify-between"
+                            >
+                              <span>{ex.name}</span>
+                              <span className="text-soft-white/40 text-xs">
+                                {ex.primaryMuscles.join(', ')}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowExercisePicker(dayIndex)}
+                        className="w-full py-3 rounded-xl border-2 border-dashed border-white/20 hover:border-electric text-soft-white/60 hover:text-electric flex items-center justify-center gap-2 transition-all"
+                      >
+                        <Plus size={18} />
+                        Legg til øvelse
+                      </button>
+                    )}
+
+                    {/* Day Actions */}
+                    <div className="flex gap-2 pt-2 border-t border-white/10">
+                      <button
+                        onClick={() => duplicateDay(dayIndex)}
+                        className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-soft-white/60"
+                      >
+                        Dupliser dag
+                      </button>
+                      {editingDays.length > 1 && (
+                        <button
+                          onClick={() => removeDay(dayIndex)}
+                          className="py-2 px-4 rounded-lg bg-coral/10 hover:bg-coral/20 text-coral text-sm"
+                        >
+                          Slett dag
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Add New Day */}
+          <button
+            onClick={addNewDay}
+            className="w-full py-4 rounded-2xl border-2 border-dashed border-white/20 hover:border-neon-green text-soft-white/60 hover:text-neon-green flex items-center justify-center gap-2 transition-all"
+          >
+            <Plus size={20} />
+            Legg til ny dag
+          </button>
+        </div>
+      );
+    }
+
+    // View Mode (existing, with edit button)
     return (
       <div className="space-y-4 pb-24">
         <div className="flex items-center justify-between">
@@ -1156,12 +1508,21 @@ export default function WorkoutTab({
             <ChevronRight className="rotate-180" size={20} />
             Tilbake
           </button>
-          <button 
-            onClick={() => deletePlan(viewingPlan.id)}
-            className="text-coral text-sm"
-          >
-            Slett plan
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={startEditingPlan}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm flex items-center gap-1"
+            >
+              <Pencil size={14} />
+              Rediger
+            </button>
+            <button 
+              onClick={() => deletePlan(viewingPlan.id)}
+              className="text-coral text-sm px-3 py-1.5"
+            >
+              Slett
+            </button>
+          </div>
         </div>
 
         <div className="text-center py-4">
