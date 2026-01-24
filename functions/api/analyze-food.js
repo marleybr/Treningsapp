@@ -195,10 +195,17 @@ export async function onRequestGet(context) {
   const { env } = context;
   const apiKey = env?.OPENAI_API_KEY;
   
+  // Try different ways to access the key
+  const allEnvKeys = Object.keys(env || {});
+  const envEntries = Object.entries(env || {}).map(([k, v]) => [k, typeof v]);
+  
   return new Response(JSON.stringify({
     status: 'Function is working!',
     hasApiKey: !!apiKey,
     apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'not set',
+    allEnvKeys: allEnvKeys,
+    envTypes: envEntries,
+    contextKeys: Object.keys(context || {}),
     timestamp: new Date().toISOString()
   }), {
     headers: {
