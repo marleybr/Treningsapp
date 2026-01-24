@@ -8,11 +8,22 @@ export async function onRequestPost(context) {
   try {
     const { request, env } = context;
     
+    // Check for OpenAI API key
+    const apiKey = env?.OPENAI_API_KEY;
+    
+    // Debug mode - if no image sent, return env debug info
     let body;
     try {
       body = await request.json();
     } catch (e) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid JSON',
+        debug: {
+          hasEnv: !!env,
+          hasApiKey: !!apiKey,
+          envKeys: Object.keys(env || {})
+        }
+      }), {
         status: 400,
         headers: corsHeaders,
       });
@@ -21,17 +32,18 @@ export async function onRequestPost(context) {
     const { image } = body;
 
     if (!image) {
-      return new Response(JSON.stringify({ error: 'No image provided' }), {
+      return new Response(JSON.stringify({ 
+        error: 'No image provided',
+        debug: {
+          hasEnv: !!env,
+          hasApiKey: !!apiKey,
+          envKeys: Object.keys(env || {})
+        }
+      }), {
         status: 400,
         headers: corsHeaders,
       });
     }
-
-    // Check for OpenAI API key - try multiple ways to access it
-    const apiKey = env.OPENAI_API_KEY || context.env?.OPENAI_API_KEY;
-    
-    // Debug: Log available env keys (remove in production)
-    console.log('Environment keys:', Object.keys(env || {}));
 
     if (!apiKey) {
       // Return demo data if no API key is configured
@@ -172,8 +184,26 @@ export async function onRequestOptions() {
   return new Response(null, {
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
+// Handle GET for testing if function is deployed
+export async function onRequestGet(context) {
+  const { env } = context;
+  const apiKey = env?.OPENAI_API_KEY;
+  
+  return new Response(JSON.stringify({
+    status: 'Function is working!',
+    hasApiKey: !!apiKey,
+    apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'not set',
+    timestamp: new Date().toISOString()
+  }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }
