@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles, CalendarDays, ChefHat, ShoppingCart, Lightbulb, ArrowLeft, ArrowRight } from 'lucide-react';
 import { UserProfile, activityLevelLabels, fitnessGoalLabels } from '@/types';
 
 interface NutritionTabProps {
@@ -27,6 +27,45 @@ interface MealEntry {
   totalCarbs: number;
   totalFat: number;
   imageUrl?: string;
+}
+
+interface MealPlanMeal {
+  name: string;
+  description: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients: string[];
+}
+
+interface DayPlan {
+  dayName: string;
+  meals: {
+    breakfast: MealPlanMeal;
+    lunch: MealPlanMeal;
+    dinner: MealPlanMeal;
+    snacks: { name: string; calories: number; protein: number; carbs: number; fat: number }[];
+  };
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+}
+
+interface MealPlan {
+  weekPlan: {
+    monday: DayPlan;
+    tuesday: DayPlan;
+    wednesday: DayPlan;
+    thursday: DayPlan;
+    friday: DayPlan;
+    saturday: DayPlan;
+    sunday: DayPlan;
+  };
+  tips: string[];
+  shoppingList: string[];
+  summary: string;
 }
 
 // Activity level multipliers for TDEE calculation
@@ -81,6 +120,19 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
   } | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<MealEntry['type']>('lunch');
   
+  // Meal plan states
+  const [showMealPlan, setShowMealPlan] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [mealPlan, setMealPlan] = useState<MealPlan | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fittrack-mealplan');
+      if (saved) return JSON.parse(saved);
+    }
+    return null;
+  });
+  const [selectedDay, setSelectedDay] = useState<keyof MealPlan['weekPlan']>('monday');
+  const [showShoppingList, setShowShoppingList] = useState(false);
+
   // Meal tracking
   const [meals, setMeals] = useState<MealEntry[]>(() => {
     if (typeof window !== 'undefined') {
@@ -103,6 +155,13 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
       localStorage.setItem('fittrack-meals', JSON.stringify(meals));
     }
   }, [meals]);
+
+  // Save meal plan to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && mealPlan) {
+      localStorage.setItem('fittrack-mealplan', JSON.stringify(mealPlan));
+    }
+  }, [mealPlan]);
 
   // Calculate age from birthdate
   const age = useMemo(() => {
@@ -271,11 +330,271 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
     }
   };
 
+  // Generate AI meal plan
+  const generateMealPlan = async () => {
+    setIsGeneratingPlan(true);
+    setShowMealPlan(true);
+
+    try {
+      const response = await fetch('/api/generate-meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile,
+          targetCalories,
+          macros,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.plan) {
+        setMealPlan(data.plan);
+      } else {
+        console.error('Failed to generate plan:', data.error);
+      }
+    } catch (error) {
+      console.error('Error generating meal plan:', error);
+    }
+
+    setIsGeneratingPlan(false);
+  };
+
+  const dayKeys: (keyof MealPlan['weekPlan'])[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  
+  const navigateDay = (direction: 'prev' | 'next') => {
+    const currentIndex = dayKeys.indexOf(selectedDay);
+    if (direction === 'prev' && currentIndex > 0) {
+      setSelectedDay(dayKeys[currentIndex - 1]);
+    } else if (direction === 'next' && currentIndex < dayKeys.length - 1) {
+      setSelectedDay(dayKeys[currentIndex + 1]);
+    }
+  };
+
   // Progress percentage
   const calorieProgress = Math.min((consumedToday.calories / targetCalories) * 100, 100);
   const proteinProgress = Math.min((consumedToday.protein / macros.protein) * 100, 100);
   const carbsProgress = Math.min((consumedToday.carbs / macros.carbs) * 100, 100);
   const fatProgress = Math.min((consumedToday.fat / macros.fat) * 100, 100);
+
+  // Meal Plan Modal
+  if (showMealPlan) {
+    const currentDay = mealPlan?.weekPlan[selectedDay];
+    
+    return (
+      <div className="fixed inset-0 z-50 bg-midnight">
+        <div className="h-full flex flex-col">
+          {/* Header */}
+          <div className="p-4 flex items-center justify-between border-b border-white/10">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <ChefHat size={24} className="text-neon-green" />
+              AI Kostholdsplan
+            </h2>
+            <button onClick={() => setShowMealPlan(false)} className="p-2 hover:bg-white/10 rounded-lg">
+              <X size={24} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {isGeneratingPlan ? (
+              <div className="h-full flex flex-col items-center justify-center p-6">
+                <Loader2 size={60} className="text-neon-green animate-spin mb-4" />
+                <p className="font-bold text-xl mb-2">Genererer kostholdsplan...</p>
+                <p className="text-soft-white/60 text-center">AI-en lager en personlig ukesplan basert på dine mål</p>
+              </div>
+            ) : mealPlan && currentDay ? (
+              <div className="p-4 space-y-4">
+                {/* Summary */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-neon-green/20 to-electric/20 border border-neon-green/30">
+                  <p className="text-soft-white/80 text-sm">{mealPlan.summary}</p>
+                </div>
+
+                {/* Day Navigator */}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => navigateDay('prev')}
+                    disabled={selectedDay === 'monday'}
+                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                  >
+                    <ArrowLeft size={24} />
+                  </button>
+                  <h3 className="text-xl font-bold">{currentDay.dayName}</h3>
+                  <button
+                    onClick={() => navigateDay('next')}
+                    disabled={selectedDay === 'sunday'}
+                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                  >
+                    <ArrowRight size={24} />
+                  </button>
+                </div>
+
+                {/* Day Pills */}
+                <div className="flex gap-1 overflow-x-auto pb-2">
+                  {dayKeys.map((day) => (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(day)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                        selectedDay === day
+                          ? 'bg-neon-green text-midnight'
+                          : 'bg-white/10 hover:bg-white/20'
+                      }`}
+                    >
+                      {mealPlan.weekPlan[day].dayName.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Day Summary */}
+                <div className="grid grid-cols-4 gap-2 p-3 rounded-xl bg-white/5">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-orange-400">{currentDay.totalCalories}</p>
+                    <p className="text-xs text-soft-white/50">kcal</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-red-400">{currentDay.totalProtein}g</p>
+                    <p className="text-xs text-soft-white/50">Protein</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-yellow-400">{currentDay.totalCarbs}g</p>
+                    <p className="text-xs text-soft-white/50">Karbs</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-purple-400">{currentDay.totalFat}g</p>
+                    <p className="text-xs text-soft-white/50">Fett</p>
+                  </div>
+                </div>
+
+                {/* Breakfast */}
+                <div className="p-4 rounded-2xl bg-white/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">🍳</span>
+                    <h4 className="font-bold">Frokost</h4>
+                    <span className="ml-auto text-electric font-bold">{currentDay.meals.breakfast.calories} kcal</span>
+                  </div>
+                  <p className="font-medium text-lg mb-1">{currentDay.meals.breakfast.name}</p>
+                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.breakfast.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {currentDay.meals.breakfast.ingredients.map((ing, i) => (
+                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lunch */}
+                <div className="p-4 rounded-2xl bg-white/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">🥗</span>
+                    <h4 className="font-bold">Lunsj</h4>
+                    <span className="ml-auto text-electric font-bold">{currentDay.meals.lunch.calories} kcal</span>
+                  </div>
+                  <p className="font-medium text-lg mb-1">{currentDay.meals.lunch.name}</p>
+                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.lunch.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {currentDay.meals.lunch.ingredients.map((ing, i) => (
+                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dinner */}
+                <div className="p-4 rounded-2xl bg-white/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">🍽️</span>
+                    <h4 className="font-bold">Middag</h4>
+                    <span className="ml-auto text-electric font-bold">{currentDay.meals.dinner.calories} kcal</span>
+                  </div>
+                  <p className="font-medium text-lg mb-1">{currentDay.meals.dinner.name}</p>
+                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.dinner.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {currentDay.meals.dinner.ingredients.map((ing, i) => (
+                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Snacks */}
+                {currentDay.meals.snacks.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-white/5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">🍎</span>
+                      <h4 className="font-bold">Mellommåltider</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {currentDay.meals.snacks.map((snack, i) => (
+                        <div key={i} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
+                          <span>{snack.name}</span>
+                          <span className="text-electric font-medium">{snack.calories} kcal</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tips */}
+                <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Lightbulb size={20} className="text-yellow-400" />
+                    <h4 className="font-bold">Tips</h4>
+                  </div>
+                  <ul className="space-y-2">
+                    {mealPlan.tips.map((tip, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-soft-white/80">
+                        <span className="text-yellow-400">•</span>
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Shopping List Toggle */}
+                <button
+                  onClick={() => setShowShoppingList(!showShoppingList)}
+                  className="w-full p-4 rounded-2xl bg-white/5 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart size={20} className="text-neon-green" />
+                    <span className="font-bold">Handleliste</span>
+                  </div>
+                  {showShoppingList ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </button>
+
+                {showShoppingList && (
+                  <div className="p-4 rounded-2xl bg-white/5 grid grid-cols-2 gap-2">
+                    {mealPlan.shoppingList.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                        <div className="w-5 h-5 rounded border border-white/20" />
+                        <span className="text-sm">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Regenerate Button */}
+                <button
+                  onClick={generateMealPlan}
+                  className="w-full py-4 rounded-2xl border-2 border-neon-green text-neon-green font-bold flex items-center justify-center gap-2"
+                >
+                  <Sparkles size={20} />
+                  Generer ny plan
+                </button>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center p-6">
+                <p className="text-soft-white/60">Noe gikk galt. Prøv igjen.</p>
+                <button
+                  onClick={generateMealPlan}
+                  className="mt-4 px-6 py-3 rounded-xl bg-neon-green text-midnight font-bold"
+                >
+                  Prøv igjen
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Scanner Modal
   if (showScanner) {
@@ -484,14 +803,24 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
         </div>
       </div>
 
-      {/* Scan Food Button */}
-      <button
-        onClick={() => setShowScanner(true)}
-        className="w-full py-5 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-3"
-      >
-        <Camera size={28} />
-        Skann mat med AI
-      </button>
+      {/* Action Buttons */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowScanner(true)}
+          className="w-full py-5 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-3"
+        >
+          <Camera size={28} />
+          Skann mat med AI
+        </button>
+
+        <button
+          onClick={() => mealPlan ? setShowMealPlan(true) : generateMealPlan()}
+          className="w-full py-5 rounded-2xl bg-gradient-to-r from-neon-green to-emerald-500 text-midnight font-bold text-lg flex items-center justify-center gap-3"
+        >
+          <ChefHat size={28} />
+          {mealPlan ? 'Se kostholdsplan' : 'Lag AI kostholdsplan'}
+        </button>
+      </div>
 
       {/* Macro Progress */}
       <div className="p-4 rounded-2xl bg-white/5">
