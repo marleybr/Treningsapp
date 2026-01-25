@@ -406,3 +406,27 @@ body {
   }
 }
 
+/* iOS-style sheet animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* iOS-style button press */
+.ios-button {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.ios-button:active {
+  transform: scale(0.97);
+  opacity: 0.7;
+}
+

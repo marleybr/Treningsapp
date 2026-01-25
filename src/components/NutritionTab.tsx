@@ -615,62 +615,61 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
     const currentDay = mealPlan?.weekPlan[selectedDay];
     
     return (
-      <div className="fixed inset-0 z-50 bg-midnight">
-        <div className="h-full flex flex-col">
-          {/* Header */}
-          <div className="p-4 flex items-center justify-between border-b border-white/10">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <ChefHat size={24} className="text-neon-green" />
-              AI Kostholdsplan
-            </h2>
-            <button onClick={() => setShowMealPlan(false)} className="p-2 hover:bg-white/10 rounded-lg">
-              <X size={24} />
+      <div className="fixed inset-0 z-50 bg-midnight ios-modal">
+        <div className="h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+          {/* iOS-style Header */}
+          <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-white/10 bg-midnight/95 backdrop-blur-lg">
+            <button 
+              onClick={() => setShowMealPlan(false)} 
+              className="min-w-[70px] text-electric text-[17px] font-medium active:opacity-60"
+            >
+              ← Tilbake
             </button>
+            <h2 className="text-[17px] font-semibold">Kostholdsplan</h2>
+            <div className="min-w-[70px] flex justify-end">
+              {!isEditingPlan && mealPlan && (
+                <button
+                  onClick={() => setIsEditingPlan(true)}
+                  className="text-electric text-[17px] font-medium active:opacity-60"
+                >
+                  Rediger
+                </button>
+              )}
+              {isEditingPlan && (
+                <button
+                  onClick={() => setIsEditingPlan(false)}
+                  className="text-neon-green text-[17px] font-medium active:opacity-60"
+                >
+                  Ferdig
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto ios-scroll" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
             {isGeneratingPlan ? (
               <div className="h-full flex flex-col items-center justify-center p-6">
-                <Loader2 size={60} className="text-neon-green animate-spin mb-4" />
-                <p className="font-bold text-xl mb-2">Genererer kostholdsplan...</p>
-                <p className="text-soft-white/60 text-center">AI-en lager en personlig ukesplan basert på dine mål</p>
+                <Loader2 size={50} className="text-neon-green animate-spin mb-4" />
+                <p className="font-semibold text-lg mb-2">Genererer kostholdsplan...</p>
+                <p className="text-soft-white/60 text-center text-[15px]">AI-en lager en personlig ukesplan basert på dine mål</p>
               </div>
             ) : mealPlan && currentDay ? (
-              <div className="p-4 space-y-4">
-                {/* Summary */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-neon-green/20 to-electric/20 border border-neon-green/30">
-                  <p className="text-soft-white/80 text-sm">{mealPlan.summary}</p>
+              <div className="px-4 py-4 space-y-4">
+                {/* Summary Card */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-neon-green/15 to-electric/15 border border-neon-green/20">
+                  <p className="text-soft-white/80 text-[15px] leading-relaxed">{mealPlan.summary}</p>
                 </div>
 
-                {/* Day Navigator */}
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => navigateDay('prev')}
-                    disabled={selectedDay === 'monday'}
-                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30"
-                  >
-                    <ArrowLeft size={24} />
-                  </button>
-                  <h3 className="text-xl font-bold">{currentDay.dayName}</h3>
-                  <button
-                    onClick={() => navigateDay('next')}
-                    disabled={selectedDay === 'sunday'}
-                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30"
-                  >
-                    <ArrowRight size={24} />
-                  </button>
-                </div>
-
-                {/* Day Pills */}
-                <div className="flex gap-1 overflow-x-auto pb-2">
+                {/* Day Selector - iOS Segmented Control Style */}
+                <div className="bg-white/5 rounded-xl p-1 flex">
                   {dayKeys.map((day) => (
                     <button
                       key={day}
                       onClick={() => setSelectedDay(day)}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                      className={`flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-all active:scale-95 ${
                         selectedDay === day
-                          ? 'bg-neon-green text-midnight'
-                          : 'bg-white/10 hover:bg-white/20'
+                          ? 'bg-neon-green text-midnight shadow-lg'
+                          : 'text-soft-white/60'
                       }`}
                     >
                       {mealPlan.weekPlan[day].dayName.slice(0, 3)}
@@ -678,77 +677,105 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                   ))}
                 </div>
 
-                {/* Day Summary */}
-                <div className="grid grid-cols-4 gap-2 p-3 rounded-xl bg-white/5">
+                {/* Day Header with Navigation */}
+                <div className="flex items-center justify-between py-2">
+                  <button
+                    onClick={() => navigateDay('prev')}
+                    disabled={selectedDay === 'monday'}
+                    className="w-11 h-11 rounded-full bg-white/5 flex items-center justify-center active:bg-white/10 disabled:opacity-30"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
                   <div className="text-center">
-                    <p className="text-lg font-bold text-orange-400">{currentDay.totalCalories}</p>
-                    <p className="text-xs text-soft-white/50">kcal</p>
+                    <h3 className="text-xl font-bold">{currentDay.dayName}</h3>
+                    <p className="text-soft-white/50 text-[13px]">{currentDay.totalCalories} kcal totalt</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-red-400">{currentDay.totalProtein}g</p>
-                    <p className="text-xs text-soft-white/50">Protein</p>
+                  <button
+                    onClick={() => navigateDay('next')}
+                    disabled={selectedDay === 'sunday'}
+                    className="w-11 h-11 rounded-full bg-white/5 flex items-center justify-center active:bg-white/10 disabled:opacity-30"
+                  >
+                    <ArrowRight size={20} />
+                  </button>
+                </div>
+
+                {/* Macro Summary - iOS Card Style */}
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-white/5 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-bold text-orange-400">{currentDay.totalCalories}</p>
+                    <p className="text-[11px] text-soft-white/50 mt-0.5">KCAL</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-yellow-400">{currentDay.totalCarbs}g</p>
-                    <p className="text-xs text-soft-white/50">Karbs</p>
+                  <div className="bg-white/5 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-bold text-red-400">{currentDay.totalProtein}g</p>
+                    <p className="text-[11px] text-soft-white/50 mt-0.5">PROTEIN</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-purple-400">{currentDay.totalFat}g</p>
-                    <p className="text-xs text-soft-white/50">Fett</p>
+                  <div className="bg-white/5 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-bold text-yellow-400">{currentDay.totalCarbs}g</p>
+                    <p className="text-[11px] text-soft-white/50 mt-0.5">KARBS</p>
+                  </div>
+                  <div className="bg-white/5 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-bold text-purple-400">{currentDay.totalFat}g</p>
+                    <p className="text-[11px] text-soft-white/50 mt-0.5">FETT</p>
                   </div>
                 </div>
 
-                {/* Recipe Modal */}
+                {/* Recipe Modal - iOS Sheet Style */}
                 {showRecipe && (
-                  <div className="fixed inset-0 z-60 bg-black/80 flex items-end justify-center">
-                    <div className="w-full max-h-[85vh] bg-midnight rounded-t-3xl overflow-hidden">
-                      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                        <h3 className="font-bold flex items-center gap-2">
-                          <BookOpen size={20} className="text-orange-400" />
-                          Oppskrift
-                        </h3>
-                        <button onClick={() => setShowRecipe(false)} className="p-2">
-                          <X size={20} />
+                  <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end">
+                    <div 
+                      className="w-full bg-midnight rounded-t-[20px] overflow-hidden animate-slideUp"
+                      style={{ maxHeight: '90vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+                    >
+                      {/* iOS Handle */}
+                      <div className="flex justify-center pt-3 pb-2">
+                        <div className="w-10 h-1 rounded-full bg-white/30" />
+                      </div>
+                      
+                      <div className="px-4 pb-2 flex items-center justify-between border-b border-white/10">
+                        <div className="w-16" />
+                        <h3 className="font-semibold text-[17px]">Oppskrift</h3>
+                        <button 
+                          onClick={() => setShowRecipe(false)} 
+                          className="w-16 text-right text-electric font-medium active:opacity-60"
+                        >
+                          Lukk
                         </button>
                       </div>
-                      <div className="p-4 overflow-y-auto max-h-[70vh]">
+                      
+                      <div className="px-4 py-4 overflow-y-auto ios-scroll" style={{ maxHeight: 'calc(90vh - 100px)' }}>
                         {isLoadingRecipe ? (
-                          <div className="text-center py-12">
+                          <div className="text-center py-16">
                             <Loader2 size={40} className="animate-spin text-orange-400 mx-auto mb-3" />
-                            <p>Henter oppskrift...</p>
+                            <p className="text-[15px]">Henter oppskrift...</p>
                           </div>
                         ) : currentRecipe ? (
                           <div className="space-y-4">
-                            {/* Title */}
                             <h2 className="text-2xl font-bold">{currentRecipe.title}</h2>
                             
                             {/* Time & Servings */}
-                            <div className="flex gap-4 text-sm">
-                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                              <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 whitespace-nowrap">
                                 <Clock size={16} className="text-orange-400" />
-                                <span>Prep: {currentRecipe.prepTime}</span>
+                                <span className="text-[14px]">Prep: {currentRecipe.prepTime}</span>
                               </div>
-                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                              <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 whitespace-nowrap">
                                 <Clock size={16} className="text-red-400" />
-                                <span>Kok: {currentRecipe.cookTime}</span>
+                                <span className="text-[14px]">Kok: {currentRecipe.cookTime}</span>
                               </div>
-                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                              <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/5 whitespace-nowrap">
                                 <Users size={16} className="text-electric" />
-                                <span>{currentRecipe.servings} pers</span>
+                                <span className="text-[14px]">{currentRecipe.servings} pers</span>
                               </div>
                             </div>
 
                             {/* Ingredients */}
                             <div className="p-4 rounded-2xl bg-white/5">
-                              <h4 className="font-bold mb-3 flex items-center gap-2">
-                                <ShoppingCart size={18} className="text-neon-green" />
-                                Ingredienser
-                              </h4>
-                              <ul className="space-y-2">
+                              <h4 className="font-semibold mb-3 text-[15px]">Ingredienser</h4>
+                              <ul className="space-y-2.5">
                                 {currentRecipe.ingredients.map((ing, i) => (
-                                  <li key={i} className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-neon-green" />
-                                    <span>{ing}</span>
+                                  <li key={i} className="flex items-center gap-3 text-[15px]">
+                                    <div className="w-2 h-2 rounded-full bg-neon-green flex-shrink-0" />
+                                    <span className="text-soft-white/90">{ing}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -756,17 +783,14 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
 
                             {/* Steps */}
                             <div className="p-4 rounded-2xl bg-white/5">
-                              <h4 className="font-bold mb-3 flex items-center gap-2">
-                                <ChefHat size={18} className="text-orange-400" />
-                                Fremgangsmåte
-                              </h4>
-                              <ol className="space-y-3">
+                              <h4 className="font-semibold mb-3 text-[15px]">Fremgangsmåte</h4>
+                              <ol className="space-y-4">
                                 {currentRecipe.steps.map((step, i) => (
                                   <li key={i} className="flex gap-3">
-                                    <span className="w-6 h-6 rounded-full bg-orange-400 text-midnight flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                    <span className="w-7 h-7 rounded-full bg-orange-400 text-midnight flex items-center justify-center text-[13px] font-bold flex-shrink-0">
                                       {i + 1}
                                     </span>
-                                    <span className="text-soft-white/80">{step}</span>
+                                    <span className="text-soft-white/80 text-[15px] leading-relaxed pt-0.5">{step}</span>
                                   </li>
                                 ))}
                               </ol>
@@ -774,40 +798,50 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
 
                             {/* Tips */}
                             {currentRecipe.tips && (
-                              <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20">
-                                <div className="flex items-start gap-2">
+                              <div className="p-4 rounded-2xl bg-yellow-500/10">
+                                <div className="flex items-start gap-3">
                                   <Lightbulb size={18} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                                  <p className="text-sm text-soft-white/80">{currentRecipe.tips}</p>
+                                  <p className="text-[14px] text-soft-white/80 leading-relaxed">{currentRecipe.tips}</p>
                                 </div>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <p className="text-center text-soft-white/50 py-8">Kunne ikke hente oppskrift</p>
+                          <p className="text-center text-soft-white/50 py-16">Kunne ikke hente oppskrift</p>
                         )}
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Suggestions Modal */}
+                {/* Suggestions Modal - iOS Sheet Style */}
                 {showSuggestions && (
-                  <div className="fixed inset-0 z-60 bg-black/80 flex items-end justify-center">
-                    <div className="w-full max-h-[80vh] bg-midnight rounded-t-3xl overflow-hidden">
-                      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                        <h3 className="font-bold flex items-center gap-2">
-                          <Sparkles size={20} className="text-neon-green" />
-                          Anbefalte alternativer
-                        </h3>
-                        <button onClick={() => { setShowSuggestions(false); setEditingMeal(null); }} className="p-2">
-                          <X size={20} />
+                  <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end">
+                    <div 
+                      className="w-full bg-midnight rounded-t-[20px] overflow-hidden"
+                      style={{ maxHeight: '85vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+                    >
+                      {/* iOS Handle */}
+                      <div className="flex justify-center pt-3 pb-2">
+                        <div className="w-10 h-1 rounded-full bg-white/30" />
+                      </div>
+                      
+                      <div className="px-4 pb-2 flex items-center justify-between border-b border-white/10">
+                        <div className="w-16" />
+                        <h3 className="font-semibold text-[17px]">Alternativer</h3>
+                        <button 
+                          onClick={() => { setShowSuggestions(false); setEditingMeal(null); }} 
+                          className="w-16 text-right text-electric font-medium active:opacity-60"
+                        >
+                          Lukk
                         </button>
                       </div>
-                      <div className="p-4 overflow-y-auto max-h-[60vh] space-y-3">
+                      
+                      <div className="px-4 py-4 overflow-y-auto ios-scroll space-y-3" style={{ maxHeight: 'calc(85vh - 80px)' }}>
                         {isLoadingSuggestions ? (
-                          <div className="text-center py-8">
+                          <div className="text-center py-12">
                             <Loader2 size={40} className="animate-spin text-neon-green mx-auto mb-3" />
-                            <p>Henter anbefalinger...</p>
+                            <p className="text-[15px]">Henter anbefalinger...</p>
                           </div>
                         ) : suggestions.length > 0 ? (
                           suggestions.map((suggestion, i) => (
