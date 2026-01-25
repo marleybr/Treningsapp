@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target, LogIn, UserCircle, Share2, Star, Sparkles, LogOut, Camera, Image, Plus, Send } from 'lucide-react';
-import { supabase, DBProfile, DBFriendship, DBWorkoutShare, DBChallenge } from '@/lib/supabase';
+import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target, LogIn, UserCircle, Share2, Star, Sparkles, LogOut, Camera, Image, Plus, Send, MessageCircle, Heart, Settings, Edit3, ImagePlus } from 'lucide-react';
+import { supabase, DBProfile, DBFriendship, DBWorkoutShare, DBChallenge, DBWorkoutComment } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { nb } from 'date-fns/locale';
@@ -27,6 +27,9 @@ export default function SocialTab() {
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
   const [showShareWorkout, setShowShareWorkout] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<string, (DBWorkoutComment & { profile: DBProfile })[]>>({});
 
   // Fetch friends
   const fetchFriends = async () => {
@@ -257,7 +260,7 @@ export default function SocialTab() {
   };
 
   // Share workout
-  const shareWorkout = async (workoutData: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string }) => {
+  const shareWorkout = async (workoutData: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string; caption?: string }) => {
     if (!user) return;
 
     await supabase
@@ -269,10 +272,50 @@ export default function SocialTab() {
         volume: workoutData.volume,
         workout_type: workoutData.type,
         distance_km: workoutData.distance,
+        image_url: workoutData.imageUrl,
+        caption: workoutData.caption,
       });
 
     setShowShareWorkout(false);
     fetchFeed();
+  };
+
+  // Fetch comments for a workout
+  const fetchComments = async (workoutId: string) => {
+    const { data } = await supabase
+      .from('workout_comments')
+      .select('*, profile:profiles(*)')
+      .eq('workout_id', workoutId)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setComments(prev => ({ ...prev, [workoutId]: data as any }));
+    }
+  };
+
+  // Add comment
+  const addComment = async (workoutId: string, content: string) => {
+    if (!user || !content.trim()) return;
+
+    await supabase
+      .from('workout_comments')
+      .insert({
+        workout_id: workoutId,
+        user_id: user.id,
+        content: content.trim(),
+      });
+
+    fetchComments(workoutId);
+  };
+
+  // Delete comment
+  const deleteComment = async (commentId: string, workoutId: string) => {
+    await supabase
+      .from('workout_comments')
+      .delete()
+      .eq('id', commentId);
+
+    fetchComments(workoutId);
   };
 
   // Handle logout
@@ -453,11 +496,22 @@ export default function SocialTab() {
     <div className="space-y-6 pb-32">
       {/* Header with Profile */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer"
+          onClick={() => setShowEditProfile(true)}
+        >
           <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
-              <span className="text-white font-bold text-lg">{profile.display_name[0].toUpperCase()}</span>
-            </div>
+            {profile.avatar_url ? (
+              <img 
+                src={profile.avatar_url} 
+                alt={profile.display_name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-electric"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{profile.display_name[0].toUpperCase()}</span>
+              </div>
+            )}
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold flex items-center justify-center border-2 border-midnight">
               <span className="text-[10px] font-bold text-midnight">{profile.level}</span>
             </div>
@@ -470,12 +524,20 @@ export default function SocialTab() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="p-2 rounded-lg bg-white/10 text-soft-white/60 hover:bg-coral/20 hover:text-coral transition-all"
-        >
-          <LogOut size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowEditProfile(true)}
+            className="p-2 rounded-lg bg-white/10 text-soft-white/60 hover:bg-electric/20 hover:text-electric transition-all"
+          >
+            <Settings size={20} />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-lg bg-white/10 text-soft-white/60 hover:bg-coral/20 hover:text-coral transition-all"
+          >
+            <LogOut size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -805,7 +867,7 @@ export default function SocialTab() {
         </div>
       )}
 
-      {/* Activity Feed Tab */}
+      {/* Activity Feed Tab - Instagram Style */}
       {activeTab === 'feed' && (
         <div className="space-y-4">
           {/* Share Workout Button */}
@@ -819,54 +881,179 @@ export default function SocialTab() {
 
           {feed.length === 0 ? (
             <div className="text-center py-12">
-              <Flame size={48} className="mx-auto text-soft-white/20 mb-4" />
-              <p className="text-soft-white/50">Ingen aktivitet enda</p>
-              <p className="text-soft-white/30 text-sm">Legg til venner for å se deres treninger</p>
+              <Camera size={48} className="mx-auto text-soft-white/20 mb-4" />
+              <p className="text-soft-white/50">Ingen innlegg enda</p>
+              <p className="text-soft-white/30 text-sm">Del din første treningsøkt!</p>
             </div>
           ) : (
             feed.map(workout => (
-              <div key={workout.id} className="p-4 rounded-2xl bg-white/5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-electric/20 flex items-center justify-center">
-                    <span className="text-electric font-bold">
-                      {workout.profile.display_name[0].toUpperCase()}
-                    </span>
+              <div key={workout.id} className="rounded-2xl bg-white/5 overflow-hidden">
+                {/* Post Header */}
+                <div className="flex items-center gap-3 p-4">
+                  <div 
+                    className="cursor-pointer"
+                    onClick={() => setViewingProfile(workout.user_id)}
+                  >
+                    {workout.profile.avatar_url ? (
+                      <img 
+                        src={workout.profile.avatar_url} 
+                        alt={workout.profile.display_name}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-electric/50"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
+                        <span className="text-white font-bold">
+                          {workout.profile.display_name[0].toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium">{workout.profile.display_name}</p>
-                    <p className="text-soft-white/50 text-sm">
+                    <p className="font-semibold">{workout.profile.display_name}</p>
+                    <p className="text-soft-white/50 text-xs">
                       {formatDistanceToNow(parseISO(workout.created_at), { locale: nb, addSuffix: true })}
                     </p>
                   </div>
                   {workout.workout_type === 'cardio' ? (
-                    <Zap className="text-neon-green" size={20} />
+                    <div className="px-2 py-1 rounded-full bg-neon-green/20 text-neon-green text-xs font-medium">
+                      Cardio
+                    </div>
                   ) : (
-                    <Dumbbell className="text-electric" size={20} />
+                    <div className="px-2 py-1 rounded-full bg-electric/20 text-electric text-xs font-medium">
+                      Styrke
+                    </div>
                   )}
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/5 mb-3">
-                  <p className="font-bold">{workout.workout_name}</p>
-                  <div className="flex gap-4 mt-2 text-sm text-soft-white/60">
-                    <span>{workout.duration_minutes} min</span>
-                    {workout.workout_type === 'weights' && (
-                      <span>{workout.volume.toLocaleString()} kg</span>
-                    )}
-                    {workout.workout_type === 'cardio' && workout.distance_km && (
-                      <span>{workout.distance_km.toFixed(2)} km</span>
-                    )}
+                {/* Post Image */}
+                {workout.image_url && (
+                  <div className="relative aspect-square bg-black/20">
+                    <img 
+                      src={workout.image_url} 
+                      alt={workout.workout_name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Workout Stats Card */}
+                <div className="mx-4 -mt-4 relative z-10">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-midnight to-deep-purple border border-white/10 shadow-lg">
+                    <p className="font-bold text-lg">{workout.workout_name}</p>
+                    <div className="flex gap-4 mt-2 text-sm">
+                      <span className="flex items-center gap-1 text-soft-white/70">
+                        <Clock size={14} />
+                        {workout.duration_minutes} min
+                      </span>
+                      {workout.workout_type === 'weights' && workout.volume > 0 && (
+                        <span className="flex items-center gap-1 text-electric">
+                          <Dumbbell size={14} />
+                          {workout.volume.toLocaleString()} kg
+                        </span>
+                      )}
+                      {workout.workout_type === 'cardio' && workout.distance_km && (
+                        <span className="flex items-center gap-1 text-neon-green">
+                          <Zap size={14} />
+                          {workout.distance_km.toFixed(2)} km
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => likeWorkout(workout.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
-                    workout.liked ? 'bg-coral/20 text-coral' : 'bg-white/5 text-soft-white/60'
-                  }`}
-                >
-                  <Flame size={16} fill={workout.liked ? 'currentColor' : 'none'} />
-                  <span>{workout.likes}</span>
-                </button>
+                {/* Caption */}
+                {workout.caption && (
+                  <p className="px-4 pt-3 text-soft-white/90">
+                    <span className="font-semibold mr-2">{workout.profile.display_name}</span>
+                    {workout.caption}
+                  </p>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-4 p-4">
+                  <button
+                    onClick={() => likeWorkout(workout.id)}
+                    className="flex items-center gap-2 transition-all"
+                  >
+                    <Heart 
+                      size={24} 
+                      className={workout.liked ? 'text-coral fill-coral' : 'text-soft-white/70'}
+                    />
+                    <span className={workout.liked ? 'text-coral font-semibold' : 'text-soft-white/70'}>
+                      {workout.likes}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (expandedComments === workout.id) {
+                        setExpandedComments(null);
+                      } else {
+                        setExpandedComments(workout.id);
+                        fetchComments(workout.id);
+                      }
+                    }}
+                    className="flex items-center gap-2 text-soft-white/70"
+                  >
+                    <MessageCircle size={24} />
+                    <span>Kommentar</span>
+                  </button>
+                </div>
+
+                {/* Comments Section */}
+                {expandedComments === workout.id && (
+                  <div className="px-4 pb-4 border-t border-white/10">
+                    {/* Comment List */}
+                    <div className="py-3 space-y-3 max-h-60 overflow-y-auto">
+                      {(!comments[workout.id] || comments[workout.id].length === 0) ? (
+                        <p className="text-soft-white/50 text-sm text-center py-4">
+                          Ingen kommentarer enda. Vær den første!
+                        </p>
+                      ) : (
+                        comments[workout.id].map(comment => (
+                          <div key={comment.id} className="flex gap-2">
+                            {comment.profile.avatar_url ? (
+                              <img 
+                                src={comment.profile.avatar_url}
+                                alt={comment.profile.display_name}
+                                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-electric/20 flex items-center justify-center flex-shrink-0">
+                                <span className="text-electric text-xs font-bold">
+                                  {comment.profile.display_name[0].toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm">
+                                <span className="font-semibold mr-2">{comment.profile.display_name}</span>
+                                {comment.content}
+                              </p>
+                              <p className="text-xs text-soft-white/40 mt-1">
+                                {formatDistanceToNow(parseISO(comment.created_at), { locale: nb, addSuffix: true })}
+                              </p>
+                            </div>
+                            {comment.user_id === user?.id && (
+                              <button
+                                onClick={() => deleteComment(comment.id, workout.id)}
+                                className="text-soft-white/30 hover:text-coral"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Add Comment Input */}
+                    <CommentInput 
+                      onSubmit={(content) => addComment(workout.id, content)}
+                      userAvatar={profile.avatar_url}
+                      userName={profile.display_name}
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -906,6 +1093,14 @@ export default function SocialTab() {
         <ShareWorkoutModal
           onClose={() => setShowShareWorkout(false)}
           onShare={shareWorkout}
+        />
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setShowEditProfile(false)}
         />
       )}
     </div>
@@ -1025,21 +1220,68 @@ function ChallengeModal({
   );
 }
 
+// Comment Input Component
+function CommentInput({ 
+  onSubmit, 
+  userAvatar, 
+  userName 
+}: { 
+  onSubmit: (content: string) => void;
+  userAvatar?: string;
+  userName: string;
+}) {
+  const [comment, setComment] = useState('');
+
+  const handleSubmit = () => {
+    if (comment.trim()) {
+      onSubmit(comment);
+      setComment('');
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 pt-3 border-t border-white/10">
+      {userAvatar ? (
+        <img src={userAvatar} alt={userName} className="w-8 h-8 rounded-full object-cover" />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-electric/20 flex items-center justify-center">
+          <span className="text-electric text-xs font-bold">{userName[0].toUpperCase()}</span>
+        </div>
+      )}
+      <input
+        type="text"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Skriv en kommentar..."
+        className="flex-1 px-3 py-2 rounded-full bg-white/5 border border-white/10 focus:border-electric outline-none text-sm"
+        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!comment.trim()}
+        className="p-2 rounded-full bg-electric text-midnight disabled:opacity-50"
+      >
+        <Send size={16} />
+      </button>
+    </div>
+  );
+}
+
 // Share Workout Modal Component
 function ShareWorkoutModal({
   onClose,
   onShare,
 }: {
   onClose: () => void;
-  onShare: (data: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string }) => void;
+  onShare: (data: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string; caption?: string }) => void;
 }) {
   const [workoutName, setWorkoutName] = useState('');
   const [duration, setDuration] = useState('');
   const [volume, setVolume] = useState('');
   const [distance, setDistance] = useState('');
+  const [caption, setCaption] = useState('');
   const [workoutType, setWorkoutType] = useState<'weights' | 'cardio'>('weights');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useState<HTMLInputElement | null>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1062,6 +1304,7 @@ function ShareWorkoutModal({
       type: workoutType,
       distance: distance ? parseFloat(distance) : undefined,
       imageUrl: imagePreview || undefined,
+      caption: caption || undefined,
     });
   };
 
@@ -1069,7 +1312,7 @@ function ShareWorkoutModal({
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-md bg-midnight rounded-2xl p-6 my-4">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold">Del treningsøkt</h3>
+          <h3 className="text-xl font-bold">Nytt innlegg</h3>
           <button onClick={onClose} className="p-2 rounded-lg bg-white/10">
             <X size={20} />
           </button>
@@ -1078,11 +1321,11 @@ function ShareWorkoutModal({
         <div className="space-y-4">
           {/* Image Upload */}
           <div>
-            <label className="block text-sm text-soft-white/60 mb-2">Legg til bilde (valgfritt)</label>
+            <label className="block text-sm text-soft-white/60 mb-2">Bilde</label>
             <div className="relative">
               {imagePreview ? (
                 <div className="relative rounded-xl overflow-hidden">
-                  <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover" />
+                  <img src={imagePreview} alt="Preview" className="w-full aspect-square object-cover" />
                   <button
                     onClick={() => setImagePreview(null)}
                     className="absolute top-2 right-2 p-2 rounded-full bg-black/50"
@@ -1091,8 +1334,8 @@ function ShareWorkoutModal({
                   </button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-white/20 cursor-pointer hover:border-electric/50 transition-all">
-                  <Camera size={32} className="text-soft-white/40 mb-2" />
+                <label className="flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed border-white/20 cursor-pointer hover:border-electric/50 transition-all bg-white/5">
+                  <ImagePlus size={48} className="text-soft-white/30 mb-3" />
                   <span className="text-soft-white/60 text-sm">Ta bilde eller velg fra galleri</span>
                   <input
                     type="file"
@@ -1104,6 +1347,18 @@ function ShareWorkoutModal({
                 </label>
               )}
             </div>
+          </div>
+
+          {/* Caption */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Bildetekst</label>
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Skriv noe om treningsøkten din..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none resize-none"
+            />
           </div>
 
           {/* Workout Type */}
@@ -1143,43 +1398,43 @@ function ShareWorkoutModal({
             />
           </div>
 
-          {/* Duration */}
-          <div>
-            <label className="block text-sm text-soft-white/60 mb-2">Varighet (minutter)</label>
-            <input
-              type="number"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="45"
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
-            />
+          {/* Stats Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-soft-white/60 mb-2">Varighet (min)</label>
+              <input
+                type="number"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                placeholder="45"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+              />
+            </div>
+            {workoutType === 'weights' ? (
+              <div>
+                <label className="block text-sm text-soft-white/60 mb-2">Volum (kg)</label>
+                <input
+                  type="number"
+                  value={volume}
+                  onChange={(e) => setVolume(e.target.value)}
+                  placeholder="5000"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm text-soft-white/60 mb-2">Distanse (km)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={distance}
+                  onChange={(e) => setDistance(e.target.value)}
+                  placeholder="5.0"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+                />
+              </div>
+            )}
           </div>
-
-          {/* Volume or Distance based on type */}
-          {workoutType === 'weights' ? (
-            <div>
-              <label className="block text-sm text-soft-white/60 mb-2">Total vekt løftet (kg)</label>
-              <input
-                type="number"
-                value={volume}
-                onChange={(e) => setVolume(e.target.value)}
-                placeholder="5000"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm text-soft-white/60 mb-2">Distanse (km)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={distance}
-                onChange={(e) => setDistance(e.target.value)}
-                placeholder="5.0"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
-              />
-            </div>
-          )}
 
           {/* Share Button */}
           <button
@@ -1188,7 +1443,150 @@ function ShareWorkoutModal({
             className="w-full py-4 rounded-xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Send size={20} />
-            Del med venner
+            Del innlegg
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Edit Profile Modal Component
+function EditProfileModal({
+  profile,
+  onClose,
+}: {
+  profile: DBProfile;
+  onClose: () => void;
+}) {
+  const { updateProfile } = useAuth();
+  const [displayName, setDisplayName] = useState(profile.display_name);
+  const [bio, setBio] = useState(profile.bio || '');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatar_url || null);
+  const [saving, setSaving] = useState(false);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    
+    await updateProfile({
+      display_name: displayName,
+      bio: bio || undefined,
+      avatar_url: avatarPreview || undefined,
+    });
+
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-midnight rounded-2xl p-6 my-4">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold">Rediger profil</h3>
+          <button onClick={onClose} className="p-2 rounded-lg bg-white/10">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Avatar Upload */}
+          <div className="flex flex-col items-center">
+            <div className="relative">
+              {avatarPreview ? (
+                <img 
+                  src={avatarPreview} 
+                  alt="Avatar" 
+                  className="w-24 h-24 rounded-full object-cover border-4 border-electric"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
+                  <span className="text-white font-bold text-3xl">{displayName[0].toUpperCase()}</span>
+                </div>
+              )}
+              <label className="absolute bottom-0 right-0 p-2 rounded-full bg-electric cursor-pointer">
+                <Camera size={16} className="text-midnight" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            <p className="text-soft-white/50 text-sm mt-2">Trykk for å endre profilbilde</p>
+          </div>
+
+          {/* Display Name */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Visningsnavn</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Ditt navn"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+            />
+          </div>
+
+          {/* Username (read-only) */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Brukernavn</label>
+            <input
+              type="text"
+              value={`@${profile.username}`}
+              disabled
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-soft-white/50"
+            />
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Fortell litt om deg selv..."
+              rows={3}
+              maxLength={150}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none resize-none"
+            />
+            <p className="text-soft-white/40 text-xs mt-1 text-right">{bio.length}/150</p>
+          </div>
+
+          {/* Stats Display */}
+          <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-white/5">
+            <div className="text-center">
+              <p className="text-xl font-bold text-electric">{profile.total_workouts}</p>
+              <p className="text-soft-white/50 text-xs">Økter</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-gold">{profile.xp.toLocaleString()}</p>
+              <p className="text-soft-white/50 text-xs">XP</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-neon-green">{profile.level}</p>
+              <p className="text-soft-white/50 text-xs">Nivå</p>
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            disabled={!displayName.trim() || saving}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold disabled:opacity-50"
+          >
+            {saving ? 'Lagrer...' : 'Lagre endringer'}
           </button>
         </div>
       </div>

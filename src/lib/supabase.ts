@@ -39,6 +39,16 @@ export interface DBWorkoutShare {
   volume: number;
   workout_type: 'weights' | 'cardio';
   distance_km?: number;
+  image_url?: string;
+  caption?: string;
+  created_at: string;
+}
+
+export interface DBWorkoutComment {
+  id: string;
+  workout_id: string;
+  user_id: string;
+  content: string;
   created_at: string;
 }
 
