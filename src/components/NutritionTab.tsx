@@ -1302,7 +1302,7 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto ios-scroll p-4 space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 120px)' }}>
+          <div className="flex-1 overflow-y-auto ios-scroll p-4 space-y-4 pb-6">
             {/* Meal Type Selector */}
             <div>
               <p className="text-soft-white/60 text-sm mb-2">Velg måltidstype:</p>
@@ -1445,17 +1445,17 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
             )}
           </div>
 
-          {/* Fixed Add Button at Bottom */}
+          {/* Fixed Add Button at Bottom - Always visible when result is ready */}
           {analysisResult && !isAnalyzing && (
             <div 
-              className="flex-shrink-0 p-4 bg-midnight/95 backdrop-blur-lg border-t border-white/10"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+              className="flex-shrink-0 px-4 pt-3 bg-midnight border-t border-white/10"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
             >
               <button
                 onClick={addMealFromAnalysis}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                className="w-full py-5 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-xl flex items-center justify-center gap-3 active:scale-[0.97] transition-transform shadow-lg shadow-electric/30"
               >
-                <Plus size={24} />
+                <Plus size={28} />
                 Legg til {mealTypeLabels[selectedMealType].label.toLowerCase()}
               </button>
             </div>
