@@ -213,6 +213,7 @@ export interface Workout {
   xpEarned?: number;
   rating?: number; // 1-6 stjerner
   comment?: string; // valgfri kommentar
+  workoutType?: 'weights' | 'cardio'; // type trening
 }
 
 // Treningsplan

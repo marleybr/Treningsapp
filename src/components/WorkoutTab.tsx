@@ -497,23 +497,31 @@ export default function WorkoutTab({
   const [editingDays, setEditingDays] = useState<TrainingDay[]>([]);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [showExercisePicker, setShowExercisePicker] = useState<number | null>(null);
+  
+  // Workout type selection
+  const [showWorkoutTypeSelector, setShowWorkoutTypeSelector] = useState(false);
+  const [selectedWorkoutType, setSelectedWorkoutType] = useState<'weights' | 'cardio'>('weights');
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
 
   // Quick start - ett klikk
-  const quickStart = () => {
+  const quickStart = (type: 'weights' | 'cardio' = 'weights') => {
     const today = new Date();
     const dayNames = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
-    const name = `${dayNames[today.getDay()]} trening`;
+    const name = type === 'cardio' 
+      ? `${dayNames[today.getDay()]} kondisjon` 
+      : `${dayNames[today.getDay()]} styrke`;
     
     setCurrentWorkout({
       id: Date.now().toString(),
       date: today.toISOString(),
       name,
       exercises: [],
+      workoutType: type,
     });
     setWorkoutStartTime(today);
     setElapsedTime(0);
     setIsTimerRunning(true);
+    setShowWorkoutTypeSelector(false);
   };
 
   // Legg til øvelse - enkelt
@@ -1760,12 +1768,68 @@ export default function WorkoutTab({
     <div className="space-y-6 pb-32">
       {/* Quick Start */}
       <button
-        onClick={quickStart}
+        onClick={() => setShowWorkoutTypeSelector(true)}
         className="w-full py-6 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-xl flex items-center justify-center gap-3"
       >
         <Plus size={28} />
         Start trening
       </button>
+
+      {/* Workout Type Selector Modal */}
+      {showWorkoutTypeSelector && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center">
+          <div 
+            className="w-full max-w-lg bg-midnight rounded-t-3xl animate-slideUp"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 rounded-full bg-white/30" />
+            </div>
+            
+            <div className="px-6 pb-6">
+              <h2 className="text-xl font-bold text-center mb-6">Velg treningstype</h2>
+              
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Styrketrening */}
+                <button
+                  onClick={() => quickStart('weights')}
+                  className="p-6 rounded-2xl bg-gradient-to-br from-electric/20 to-purple-500/20 border-2 border-electric/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
+                >
+                  <div className="w-16 h-16 rounded-full bg-electric/20 flex items-center justify-center">
+                    <Dumbbell size={32} className="text-electric" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-lg">Styrke</p>
+                    <p className="text-soft-white/60 text-sm">Vekter & maskiner</p>
+                  </div>
+                </button>
+
+                {/* Kondisjon */}
+                <button
+                  onClick={() => quickStart('cardio')}
+                  className="p-6 rounded-2xl bg-gradient-to-br from-neon-green/20 to-emerald-500/20 border-2 border-neon-green/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
+                >
+                  <div className="w-16 h-16 rounded-full bg-neon-green/20 flex items-center justify-center">
+                    <Zap size={32} className="text-neon-green" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-lg">Kondisjon</p>
+                    <p className="text-soft-white/60 text-sm">Løping & cardio</p>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowWorkoutTypeSelector(false)}
+                className="w-full py-4 rounded-xl bg-white/10 text-soft-white font-medium active:scale-[0.98] transition-transform"
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Treningsplan */}
       <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-600/20 to-electric/10 border border-white/10">
