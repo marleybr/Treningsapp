@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Lock, User, Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Sparkles, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface AuthScreenProps {
   onSkip?: () => void;
+  onBack?: () => void;
 }
 
-export default function AuthScreen({ onSkip }: AuthScreenProps) {
+export default function AuthScreen({ onSkip, onBack }: AuthScreenProps) {
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -57,6 +58,17 @@ export default function AuthScreen({ onSkip }: AuthScreenProps) {
 
       <div className="flex-1 flex flex-col justify-center px-6 py-12">
         <div className="max-w-md mx-auto w-full">
+          {/* Back button */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-soft-white/60 hover:text-soft-white mb-6 transition-colors"
+            >
+              <ArrowLeft size={20} />
+              Tilbake
+            </button>
+          )}
+
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">

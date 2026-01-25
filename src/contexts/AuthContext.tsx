@@ -14,6 +14,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<DBProfile>) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
+  syncLocalStats: (stats: { totalWorkouts: number; totalVolume: number; currentStreak: number; xp: number; level: number }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -157,6 +158,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Sync local stats to Supabase profile
+  const syncLocalStats = async (stats: { totalWorkouts: number; totalVolume: number; currentStreak: number; xp: number; level: number }) => {
+    if (!user) return;
+
+    // Only sync if local stats are higher (merge strategy)
+    const currentProfile = profile;
+    if (!currentProfile) return;
+
+    const updates: Partial<DBProfile> = {};
+
+    if (stats.totalWorkouts > currentProfile.total_workouts) {
+      updates.total_workouts = stats.totalWorkouts;
+    }
+    if (stats.totalVolume > currentProfile.total_volume) {
+      updates.total_volume = stats.totalVolume;
+    }
+    if (stats.currentStreak > currentProfile.current_streak) {
+      updates.current_streak = stats.currentStreak;
+    }
+    if (stats.xp > currentProfile.xp) {
+      updates.xp = stats.xp;
+    }
+    if (stats.level > currentProfile.level) {
+      updates.level = stats.level;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await updateProfile(updates);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -168,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       updateProfile,
       refreshProfile,
+      syncLocalStats,
     }}>
       {children}
     </AuthContext.Provider>

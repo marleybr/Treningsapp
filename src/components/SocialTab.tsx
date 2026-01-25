@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target } from 'lucide-react';
+import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target, LogIn, UserCircle, Share2, Star, Sparkles } from 'lucide-react';
 import { supabase, DBProfile, DBFriendship, DBWorkoutShare, DBChallenge } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { nb } from 'date-fns/locale';
+import UserProfileModal from './UserProfileModal';
+import AuthScreen from './AuthScreen';
 
 type TabType = 'friends' | 'leaderboard' | 'challenges' | 'feed';
 
@@ -22,6 +24,8 @@ export default function SocialTab() {
   const [loading, setLoading] = useState(true);
   const [showNewChallenge, setShowNewChallenge] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<DBProfile | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<string | null>(null);
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
 
   // Fetch friends
   const fetchFriends = async () => {
@@ -237,6 +241,20 @@ export default function SocialTab() {
     fetchChallenges();
   };
 
+  // Remove friend
+  const removeFriend = async (friendId: string) => {
+    if (!user) return;
+
+    // Delete both directions of friendship
+    await supabase
+      .from('friendships')
+      .delete()
+      .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`);
+
+    setFriends(prev => prev.filter(f => f.id !== friendId));
+    setViewingProfile(null);
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -269,11 +287,139 @@ export default function SocialTab() {
   }, [searchQuery]);
 
   if (!user || !profile) {
+    if (showAuthScreen) {
+      return <AuthScreen onBack={() => setShowAuthScreen(false)} />;
+    }
+
     return (
-      <div className="text-center py-12">
-        <Users size={48} className="mx-auto text-soft-white/30 mb-4" />
-        <h3 className="text-xl font-bold mb-2">Logg inn for sosiale funksjoner</h3>
-        <p className="text-soft-white/60">Du må være innlogget for å se venner og konkurranser</p>
+      <div className="space-y-6 pb-32 animate-fadeInUp">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-2xl font-display font-bold">Sosialt</h1>
+          <p className="text-soft-white/60">Tren med venner</p>
+        </div>
+
+        {/* Hero Card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-electric/20 via-coral/10 to-neon-green/20 border border-white/10 p-6">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-electric/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-coral/20 rounded-full blur-2xl"></div>
+          
+          <div className="relative text-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center mx-auto mb-4">
+              <UserCircle size={40} className="text-white" />
+            </div>
+            
+            <h2 className="text-xl font-display font-bold mb-2">
+              Opprett en profil
+            </h2>
+            <p className="text-soft-white/70 mb-6">
+              Koble deg til andre treningsentusiaster og ta treningen til neste nivå
+            </p>
+
+            <button
+              onClick={() => setShowAuthScreen(true)}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-electric to-coral text-white font-bold flex items-center justify-center gap-2 mb-3"
+            >
+              <LogIn size={20} />
+              Kom i gang
+            </button>
+            
+            <p className="text-soft-white/50 text-sm">
+              Allerede bruker?{' '}
+              <button 
+                onClick={() => setShowAuthScreen(true)}
+                className="text-electric hover:underline"
+              >
+                Logg inn
+              </button>
+            </p>
+          </div>
+        </div>
+
+        {/* Benefits Grid */}
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold px-1">Hvorfor lage profil?</h3>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="w-10 h-10 rounded-lg bg-electric/20 flex items-center justify-center mb-3">
+                <Users className="text-electric" size={20} />
+              </div>
+              <h4 className="font-semibold mb-1">Finn venner</h4>
+              <p className="text-soft-white/60 text-sm">
+                Søk etter og koble deg til andre treningsvenner
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="w-10 h-10 rounded-lg bg-coral/20 flex items-center justify-center mb-3">
+                <Swords className="text-coral" size={20} />
+              </div>
+              <h4 className="font-semibold mb-1">Konkurrer</h4>
+              <p className="text-soft-white/60 text-sm">
+                Utfordre venner i treningskonkurranser
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="w-10 h-10 rounded-lg bg-gold/20 flex items-center justify-center mb-3">
+                <Trophy className="text-gold" size={20} />
+              </div>
+              <h4 className="font-semibold mb-1">Topplister</h4>
+              <p className="text-soft-white/60 text-sm">
+                Se hvordan du rangerer mot andre
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="w-10 h-10 rounded-lg bg-neon-green/20 flex items-center justify-center mb-3">
+                <Share2 className="text-neon-green" size={20} />
+              </div>
+              <h4 className="font-semibold mb-1">Del fremgang</h4>
+              <p className="text-soft-white/60 text-sm">
+                Del treningsøkter og inspirer andre
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview Leaderboard */}
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Trophy className="text-gold" size={18} />
+              Toppliste
+            </h3>
+            <span className="text-soft-white/50 text-sm">Topp 5</span>
+          </div>
+
+          {leaderboard.slice(0, 5).map((leaderUser, index) => (
+            <div key={leaderUser.id} className="flex items-center gap-3 p-2 rounded-lg">
+              <span className={`w-6 text-center font-bold ${
+                index === 0 ? 'text-yellow-400' : 
+                index === 1 ? 'text-gray-400' : 
+                index === 2 ? 'text-orange-600' : 'text-soft-white/40'
+              }`}>
+                {index + 1}
+              </span>
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                <span className="text-sm font-bold">{leaderUser.display_name[0].toUpperCase()}</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm">{leaderUser.display_name}</p>
+              </div>
+              <span className="text-electric font-bold text-sm">{leaderUser.total_workouts}</span>
+            </div>
+          ))}
+
+          <button
+            onClick={() => setShowAuthScreen(true)}
+            className="w-full mt-4 py-3 rounded-xl bg-white/5 border border-white/10 text-soft-white/70 text-sm flex items-center justify-center gap-2"
+          >
+            <Sparkles size={16} />
+            Logg inn for å se din plassering
+          </button>
+        </div>
       </div>
     );
   }
@@ -404,27 +550,50 @@ export default function SocialTab() {
               </div>
             ) : (
               friends.map(friend => (
-                <div key={friend.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+                <div 
+                  key={friend.id} 
+                  className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all cursor-pointer"
+                  onClick={() => setViewingProfile(friend.id)}
+                >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-electric/20 flex items-center justify-center">
-                      <span className="text-electric font-bold">{friend.display_name[0].toUpperCase()}</span>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
+                        <span className="text-white font-bold">{friend.display_name[0].toUpperCase()}</span>
+                      </div>
+                      {/* Level badge */}
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gold flex items-center justify-center border border-midnight">
+                        <span className="text-[10px] font-bold text-midnight">{friend.level}</span>
+                      </div>
                     </div>
                     <div>
                       <p className="font-medium">{friend.display_name}</p>
-                      <p className="text-soft-white/50 text-sm">
-                        Nivå {friend.level} • {friend.total_workouts} økter
-                      </p>
+                      <div className="flex items-center gap-2 text-soft-white/50 text-sm">
+                        <span className="flex items-center gap-1">
+                          <Dumbbell size={12} />
+                          {friend.total_workouts}
+                        </span>
+                        {friend.current_streak > 0 && (
+                          <span className="flex items-center gap-1 text-coral">
+                            <Flame size={12} />
+                            {friend.current_streak}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedFriend(friend);
-                      setShowNewChallenge(true);
-                    }}
-                    className="p-2 rounded-lg bg-coral/20 text-coral"
-                  >
-                    <Swords size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFriend(friend);
+                        setShowNewChallenge(true);
+                      }}
+                      className="p-2 rounded-lg bg-coral/20 text-coral hover:bg-coral/30 transition-all"
+                    >
+                      <Swords size={18} />
+                    </button>
+                    <ChevronRight size={16} className="text-soft-white/30" />
+                  </div>
                 </div>
               ))
             )}
@@ -461,24 +630,28 @@ export default function SocialTab() {
 
           {/* Rest of leaderboard */}
           <div className="p-4 rounded-2xl bg-white/5 space-y-2">
-            {leaderboard.slice(3).map((user, index) => (
+            {leaderboard.slice(3).map((leaderUser, index) => (
               <div
-                key={user.id}
-                className={`flex items-center gap-3 p-3 rounded-xl ${
-                  user.id === profile?.id ? 'bg-electric/10 border border-electric/30' : 'bg-white/5'
+                key={leaderUser.id}
+                onClick={() => setViewingProfile(leaderUser.id)}
+                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-white/10 ${
+                  leaderUser.id === profile?.id ? 'bg-electric/10 border border-electric/30' : 'bg-white/5'
                 }`}
               >
                 <span className="w-8 text-center font-bold text-soft-white/40">{index + 4}</span>
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                  <span className="font-bold">{user.display_name[0].toUpperCase()}</span>
+                  <span className="font-bold">{leaderUser.display_name[0].toUpperCase()}</span>
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium">{user.display_name}</p>
-                  <p className="text-soft-white/50 text-sm">Nivå {user.level}</p>
+                  <p className="font-medium">{leaderUser.display_name}</p>
+                  <p className="text-soft-white/50 text-sm">Nivå {leaderUser.level}</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-electric">{user.total_workouts}</p>
-                  <p className="text-xs text-soft-white/50">økter</p>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="font-bold text-electric">{leaderUser.total_workouts}</p>
+                    <p className="text-xs text-soft-white/50">økter</p>
+                  </div>
+                  <ChevronRight size={16} className="text-soft-white/30" />
                 </div>
               </div>
             ))}
@@ -654,6 +827,21 @@ export default function SocialTab() {
             setSelectedFriend(null);
           }}
           onCreate={createChallenge}
+        />
+      )}
+
+      {/* User Profile Modal */}
+      {viewingProfile && (
+        <UserProfileModal
+          userId={viewingProfile}
+          onClose={() => setViewingProfile(null)}
+          onChallenge={(profileUser) => {
+            setViewingProfile(null);
+            setSelectedFriend(profileUser);
+            setShowNewChallenge(true);
+          }}
+          onRemoveFriend={removeFriend}
+          isFriend={friends.some(f => f.id === viewingProfile)}
         />
       )}
     </div>
