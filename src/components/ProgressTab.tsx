@@ -1,11 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import { TrendingUp, TrendingDown, Plus, X, Scale, Activity, Trash2, Target } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { TrendingUp, TrendingDown, Plus, X, Scale, Activity, Trash2, Target, Flame, Dumbbell, Apple, Calendar, Award, Zap, Check } from 'lucide-react';
 import { BodyStats, Workout, UserProfile } from '@/types';
-import { format, parseISO, subDays } from 'date-fns';
+import { format, parseISO, subDays, startOfWeek, endOfWeek, isWithinInterval, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar } from 'recharts';
+
+interface MealEntry {
+  id: string;
+  timestamp: string;
+  type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+}
 
 interface ProgressTabProps {
   bodyStats: BodyStats[];
@@ -14,11 +24,39 @@ interface ProgressTabProps {
   profile?: UserProfile | null;
 }
 
+// Activity level multipliers for TDEE calculation
+const activityMultipliers: Record<string, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9,
+};
+
+// Goal adjustments
+const goalAdjustments: Record<string, number> = {
+  lose_weight: -500,
+  maintain: 0,
+  build_muscle: 300,
+  improve_fitness: 0,
+};
+
 export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile }: ProgressTabProps) {
   const [showAddStats, setShowAddStats] = useState(false);
   const [weight, setWeight] = useState('');
   const [bodyFat, setBodyFat] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [meals, setMeals] = useState<MealEntry[]>([]);
+
+  // Load meals from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fittrack-meals');
+      if (saved) {
+        setMeals(JSON.parse(saved));
+      }
+    }
+  }, []);
 
   const sortedStats = [...bodyStats].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -35,6 +73,179 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
   const totalWeightChange = sortedStats.length > 1 && sortedStats[0].weight && latestStats?.weight
     ? latestStats.weight - sortedStats[0].weight
     : 0;
+
+  // Calculate target calories
+  const targetCalories = useMemo(() => {
+    if (!profile) return 2000;
+    
+    const age = profile.birthDate 
+      ? Math.floor((Date.now() - new Date(profile.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      : 30;
+    
+    // BMR using Mifflin-St Jeor
+    let bmr;
+    if (profile.gender === 'female') {
+      bmr = 10 * profile.currentWeight + 6.25 * profile.height - 5 * age - 161;
+    } else {
+      bmr = 10 * profile.currentWeight + 6.25 * profile.height - 5 * age + 5;
+    }
+    
+    const tdee = bmr * (activityMultipliers[profile.activityLevel] || 1.55);
+    const adjustment = goalAdjustments[profile.fitnessGoal] || 0;
+    
+    return Math.round(tdee + adjustment);
+  }, [profile]);
+
+  // Calculate this week's stats
+  const thisWeekStats = useMemo(() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    
+    // Workouts this week
+    const weekWorkouts = workouts.filter(w => {
+      const date = parseISO(w.date);
+      return isWithinInterval(date, { start: weekStart, end: weekEnd });
+    });
+    
+    // Meals this week
+    const weekMeals = meals.filter(m => {
+      const date = parseISO(m.timestamp);
+      return isWithinInterval(date, { start: weekStart, end: weekEnd });
+    });
+    
+    // Calculate average daily calories this week
+    const daysWithMeals = new Set(weekMeals.map(m => m.timestamp.split('T')[0])).size;
+    const totalCaloriesThisWeek = weekMeals.reduce((sum, m) => sum + m.totalCalories, 0);
+    const avgDailyCalories = daysWithMeals > 0 ? Math.round(totalCaloriesThisWeek / daysWithMeals) : 0;
+    
+    // Volume lifted this week
+    const weekVolume = weekWorkouts.reduce((total, w) => {
+      return total + w.exercises.reduce((exTotal, ex) => {
+        return exTotal + ex.sets.reduce((setTotal, set) => {
+          return setTotal + (set.weight * set.reps);
+        }, 0);
+      }, 0);
+    }, 0);
+    
+    // Cardio this week (distance from cardio workouts)
+    const cardioWorkouts = weekWorkouts.filter(w => w.workoutType === 'cardio');
+    const totalCardioDistance = cardioWorkouts.reduce((total, w) => {
+      const cardioEx = w.exercises.find(ex => ex.exerciseName === 'Løping');
+      return total + (cardioEx ? cardioEx.sets[0]?.reps || 0 : 0); // Distance stored in reps
+    }, 0);
+    
+    return {
+      workoutCount: weekWorkouts.length,
+      avgDailyCalories,
+      totalCaloriesThisWeek,
+      weekVolume,
+      cardioDistance: totalCardioDistance / 1000, // Convert to km
+      cardioWorkouts: cardioWorkouts.length,
+      strengthWorkouts: weekWorkouts.filter(w => w.workoutType !== 'cardio').length,
+    };
+  }, [workouts, meals]);
+
+  // Calculate streak
+  const streak = useMemo(() => {
+    if (workouts.length === 0) return 0;
+    
+    const sortedDates = [...new Set(workouts.map(w => w.date.split('T')[0]))]
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    let currentStreak = 0;
+    let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < sortedDates.length; i++) {
+      const workoutDate = new Date(sortedDates[i]);
+      workoutDate.setHours(0, 0, 0, 0);
+      
+      const expectedDate = subDays(currentDate, currentStreak);
+      expectedDate.setHours(0, 0, 0, 0);
+      
+      const daysDiff = differenceInDays(expectedDate, workoutDate);
+      
+      if (daysDiff === 0) {
+        currentStreak++;
+      } else if (daysDiff === 1 && currentStreak === 0) {
+        currentStreak++;
+        currentDate = subDays(currentDate, 1);
+      } else {
+        break;
+      }
+    }
+    
+    return currentStreak;
+  }, [workouts]);
+
+  // Weekly calories chart data (last 7 days)
+  const caloriesChartData = useMemo(() => {
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayMeals = meals.filter(m => m.timestamp.split('T')[0] === dateStr);
+      const totalCals = dayMeals.reduce((sum, m) => sum + m.totalCalories, 0);
+      
+      data.push({
+        day: format(date, 'EEE', { locale: nb }),
+        calories: totalCals,
+        target: targetCalories,
+      });
+    }
+    return data;
+  }, [meals, targetCalories]);
+
+  // Workout frequency chart data (last 4 weeks)
+  const workoutFrequencyData = useMemo(() => {
+    const data = [];
+    for (let i = 3; i >= 0; i--) {
+      const weekStart = subDays(new Date(), (i + 1) * 7);
+      const weekEnd = subDays(new Date(), i * 7);
+      const weekWorkouts = workouts.filter(w => {
+        const date = parseISO(w.date);
+        return date >= weekStart && date < weekEnd;
+      });
+      
+      data.push({
+        week: `Uke ${4 - i}`,
+        workouts: weekWorkouts.length,
+        target: profile?.workoutsPerWeek || 3,
+      });
+    }
+    return data;
+  }, [workouts, profile]);
+
+  // Chart data
+  const chartData = sortedStats.slice(-30).map(stat => ({
+    date: format(parseISO(stat.date), 'd. MMM', { locale: nb }),
+    weight: stat.weight,
+    bodyFat: stat.bodyFat,
+  }));
+
+  // Goal progress calculations
+  const goalProgress = useMemo(() => {
+    if (!profile || !latestStats?.weight) return null;
+    
+    const startWeight = sortedStats[0]?.weight || profile.currentWeight;
+    const currentWeight = latestStats.weight;
+    const targetWeight = profile.targetWeight;
+    
+    const totalToLose = startWeight - targetWeight;
+    const lost = startWeight - currentWeight;
+    const progress = totalToLose !== 0 ? Math.min(Math.max((lost / totalToLose) * 100, 0), 100) : 100;
+    
+    return {
+      startWeight,
+      currentWeight,
+      targetWeight,
+      progress,
+      remaining: Math.abs(currentWeight - targetWeight),
+      isGaining: targetWeight > startWeight,
+    };
+  }, [profile, latestStats, sortedStats]);
 
   const addStats = () => {
     if (!weight) return;
@@ -56,28 +267,6 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
     setBodyStats(bodyStats.filter(s => s.id !== statsId));
   };
 
-  // Chart data
-  const chartData = sortedStats.slice(-30).map(stat => ({
-    date: format(parseISO(stat.date), 'd. MMM', { locale: nb }),
-    weight: stat.weight,
-    bodyFat: stat.bodyFat,
-  }));
-
-  // Workout frequency chart data (last 4 weeks)
-  const workoutFrequencyData = [];
-  for (let i = 3; i >= 0; i--) {
-    const weekStart = subDays(new Date(), (i + 1) * 7);
-    const weekEnd = subDays(new Date(), i * 7);
-    const weekWorkouts = workouts.filter(w => {
-      const date = parseISO(w.date);
-      return date >= weekStart && date < weekEnd;
-    }).length;
-    workoutFrequencyData.push({
-      week: `Uke ${4 - i}`,
-      workouts: weekWorkouts,
-    });
-  }
-
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -86,7 +275,10 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
           <p className="text-sm font-medium">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name === 'weight' ? 'Vekt' : entry.name}: {entry.value}{entry.name === 'weight' ? ' kg' : entry.name === 'bodyFat' ? '%' : ''}
+              {entry.name === 'weight' ? 'Vekt' : 
+               entry.name === 'calories' ? 'Kalorier' :
+               entry.name === 'workouts' ? 'Økter' :
+               entry.name}: {entry.value}{entry.name === 'weight' ? ' kg' : entry.name === 'bodyFat' ? '%' : entry.name === 'calories' ? ' kcal' : ''}
             </p>
           ))}
         </div>
@@ -108,7 +300,111 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
         </button>
       </div>
 
-      {/* Current Stats */}
+      {/* This Week Summary */}
+      <div className="p-4 rounded-2xl bg-gradient-to-br from-electric/20 to-neon-green/20 border border-electric/30">
+        <h3 className="font-bold mb-3 flex items-center gap-2">
+          <Calendar size={18} className="text-electric" />
+          Denne uken
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl bg-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Dumbbell size={16} className="text-electric" />
+              <span className="text-soft-white/60 text-xs">Treningsøkter</span>
+            </div>
+            <p className="text-2xl font-bold">
+              {thisWeekStats.workoutCount}
+              <span className="text-soft-white/40 text-sm font-normal">/{profile?.workoutsPerWeek || 3}</span>
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Flame size={16} className="text-orange-400" />
+              <span className="text-soft-white/60 text-xs">Snitt kalorier/dag</span>
+            </div>
+            <p className="text-2xl font-bold text-orange-400">
+              {thisWeekStats.avgDailyCalories}
+              <span className="text-soft-white/40 text-sm font-normal"> kcal</span>
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap size={16} className="text-neon-green" />
+              <span className="text-soft-white/60 text-xs">Volum løftet</span>
+            </div>
+            <p className="text-2xl font-bold text-neon-green">
+              {thisWeekStats.weekVolume >= 1000 
+                ? `${(thisWeekStats.weekVolume / 1000).toFixed(1)}t` 
+                : `${thisWeekStats.weekVolume}kg`}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity size={16} className="text-purple-400" />
+              <span className="text-soft-white/60 text-xs">Løpt</span>
+            </div>
+            <p className="text-2xl font-bold text-purple-400">
+              {thisWeekStats.cardioDistance.toFixed(1)}
+              <span className="text-soft-white/40 text-sm font-normal"> km</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Goal Progress */}
+      {goalProgress && (
+        <div className="card">
+          <h3 className="font-bold mb-3 flex items-center gap-2">
+            <Target size={18} className="text-neon-green" />
+            Målprogresjon
+          </h3>
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-2">
+              <span>{goalProgress.startWeight} kg</span>
+              <span className="text-neon-green font-bold">{goalProgress.currentWeight} kg</span>
+              <span>{goalProgress.targetWeight} kg</span>
+            </div>
+            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-electric to-neon-green transition-all duration-500"
+                style={{ width: `${goalProgress.progress}%` }}
+              />
+            </div>
+            <p className="text-sm text-soft-white/60 mt-2 text-center">
+              {goalProgress.progress >= 100 ? (
+                <span className="text-neon-green flex items-center justify-center gap-1">
+                  <Check size={16} /> Mål oppnådd!
+                </span>
+              ) : (
+                <>
+                  {goalProgress.remaining.toFixed(1)} kg igjen til mål
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Streak & Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-4 rounded-2xl bg-coral/10 border border-coral/20 text-center">
+          <Award className="mx-auto text-coral mb-1" size={24} />
+          <p className="text-2xl font-bold text-coral">{streak}</p>
+          <p className="text-soft-white/50 text-xs">Dagers streak</p>
+        </div>
+        <div className="p-4 rounded-2xl bg-electric/10 border border-electric/20 text-center">
+          <Dumbbell className="mx-auto text-electric mb-1" size={24} />
+          <p className="text-2xl font-bold text-electric">{workouts.length}</p>
+          <p className="text-soft-white/50 text-xs">Totalt økter</p>
+        </div>
+        <div className="p-4 rounded-2xl bg-neon-green/10 border border-neon-green/20 text-center">
+          <Apple className="mx-auto text-neon-green mb-1" size={24} />
+          <p className="text-2xl font-bold text-neon-green">{meals.length}</p>
+          <p className="text-soft-white/50 text-xs">Måltider logget</p>
+        </div>
+      </div>
+
+      {/* Current Weight Stats */}
       {latestStats && (
         <div className="grid grid-cols-2 gap-4">
           <div className="card glow-electric">
@@ -150,30 +446,93 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
         </div>
       )}
 
-      {/* Total Progress */}
-      {totalWeightChange !== 0 && (
-        <div className="card bg-gradient-to-r from-electric/10 to-neon-green/10 border-electric/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-soft-white/60 text-sm">Total endring</p>
-              <p className={`text-2xl font-bold ${
-                (profile?.fitnessGoal === 'lose_weight' && totalWeightChange < 0) ||
-                (profile?.fitnessGoal === 'build_muscle' && totalWeightChange > 0)
-                  ? 'text-neon-green' 
-                  : 'text-coral'
-              }`}>
-                {totalWeightChange > 0 ? '+' : ''}{totalWeightChange.toFixed(1)} kg
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-soft-white/60 text-sm">Siden start</p>
-              <p className="text-soft-white/80">
-                {sortedStats[0]?.weight} kg → {latestStats?.weight} kg
-              </p>
-            </div>
+      {/* Calories Chart (Last 7 days) */}
+      {caloriesChartData.some(d => d.calories > 0) && (
+        <div className="card">
+          <h3 className="text-lg font-display font-semibold mb-4 flex items-center gap-2">
+            <Flame className="text-orange-400" size={20} />
+            Kalorier siste 7 dager
+          </h3>
+          
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={caloriesChartData}>
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#f0f0f580"
+                  tick={{ fill: '#f0f0f580', fontSize: 12 }}
+                />
+                <YAxis 
+                  stroke="#f0f0f580"
+                  tick={{ fill: '#f0f0f580', fontSize: 12 }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <ReferenceLine 
+                  y={targetCalories} 
+                  stroke="#39ff14" 
+                  strokeDasharray="5 5"
+                />
+                <Bar 
+                  dataKey="calories" 
+                  fill="#ff6b6b"
+                  radius={[4, 4, 0, 0]}
+                  name="calories"
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
+          <p className="text-center text-soft-white/50 text-xs mt-2">
+            Grønn linje = kaloriemål ({targetCalories} kcal)
+          </p>
         </div>
       )}
+
+      {/* Workout Frequency */}
+      <div className="card">
+        <h3 className="text-lg font-display font-semibold mb-4 flex items-center gap-2">
+          <Activity className="text-gold" size={20} />
+          Treningsfrekvens
+        </h3>
+        
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={workoutFrequencyData}>
+              <defs>
+                <linearGradient id="workoutGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#39ff14" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#39ff14" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis 
+                dataKey="week" 
+                stroke="#f0f0f580"
+                tick={{ fill: '#f0f0f580', fontSize: 12 }}
+              />
+              <YAxis 
+                stroke="#f0f0f580"
+                tick={{ fill: '#f0f0f580', fontSize: 12 }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine 
+                y={profile?.workoutsPerWeek || 3} 
+                stroke="#00d9ff" 
+                strokeDasharray="5 5"
+              />
+              <Area 
+                type="monotone" 
+                dataKey="workouts" 
+                stroke="#39ff14" 
+                strokeWidth={2}
+                fill="url(#workoutGradient)"
+                name="Økter"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-center text-soft-white/50 text-xs mt-2">
+          Blå linje = ukentlig mål ({profile?.workoutsPerWeek || 3} økter)
+        </p>
+      </div>
 
       {/* Weight Chart */}
       {chartData.length > 1 && (
@@ -224,45 +583,6 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
           </div>
         </div>
       )}
-
-      {/* Workout Frequency */}
-      <div className="card">
-        <h3 className="text-lg font-display font-semibold mb-4 flex items-center gap-2">
-          <Activity className="text-gold" size={20} />
-          Treningsfrekvens
-        </h3>
-        
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={workoutFrequencyData}>
-              <defs>
-                <linearGradient id="workoutGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#39ff14" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#39ff14" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis 
-                dataKey="week" 
-                stroke="#f0f0f580"
-                tick={{ fill: '#f0f0f580', fontSize: 12 }}
-              />
-              <YAxis 
-                stroke="#f0f0f580"
-                tick={{ fill: '#f0f0f580', fontSize: 12 }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Area 
-                type="monotone" 
-                dataKey="workouts" 
-                stroke="#39ff14" 
-                strokeWidth={2}
-                fill="url(#workoutGradient)"
-                name="Økter"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
       {/* Stats History */}
       {bodyStats.length > 0 && (
