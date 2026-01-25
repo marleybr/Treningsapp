@@ -1777,45 +1777,43 @@ export default function WorkoutTab({
 
       {/* Workout Type Selector Modal */}
       {showWorkoutTypeSelector && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center">
+        <div 
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-6"
+          onClick={() => setShowWorkoutTypeSelector(false)}
+        >
           <div 
-            className="w-full max-w-lg bg-midnight rounded-t-3xl animate-slideUp"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
+            className="w-full max-w-sm bg-midnight rounded-3xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-2">
-              <div className="w-10 h-1 rounded-full bg-white/30" />
-            </div>
-            
-            <div className="px-6 pb-6">
+            <div className="p-6">
               <h2 className="text-xl font-bold text-center mb-6">Velg treningstype</h2>
               
               <div className="grid grid-cols-2 gap-4 mb-6">
                 {/* Styrketrening */}
                 <button
                   onClick={() => quickStart('weights')}
-                  className="p-6 rounded-2xl bg-gradient-to-br from-electric/20 to-purple-500/20 border-2 border-electric/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
+                  className="p-5 rounded-2xl bg-gradient-to-br from-electric/20 to-purple-500/20 border-2 border-electric/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
                 >
-                  <div className="w-16 h-16 rounded-full bg-electric/20 flex items-center justify-center">
-                    <Dumbbell size={32} className="text-electric" />
+                  <div className="w-14 h-14 rounded-full bg-electric/20 flex items-center justify-center">
+                    <Dumbbell size={28} className="text-electric" />
                   </div>
                   <div className="text-center">
-                    <p className="font-bold text-lg">Styrke</p>
-                    <p className="text-soft-white/60 text-sm">Vekter & maskiner</p>
+                    <p className="font-bold">Styrke</p>
+                    <p className="text-soft-white/60 text-xs">Vekter & maskiner</p>
                   </div>
                 </button>
 
                 {/* Kondisjon */}
                 <button
                   onClick={() => quickStart('cardio')}
-                  className="p-6 rounded-2xl bg-gradient-to-br from-neon-green/20 to-emerald-500/20 border-2 border-neon-green/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
+                  className="p-5 rounded-2xl bg-gradient-to-br from-neon-green/20 to-emerald-500/20 border-2 border-neon-green/50 flex flex-col items-center gap-3 active:scale-95 transition-transform"
                 >
-                  <div className="w-16 h-16 rounded-full bg-neon-green/20 flex items-center justify-center">
-                    <Zap size={32} className="text-neon-green" />
+                  <div className="w-14 h-14 rounded-full bg-neon-green/20 flex items-center justify-center">
+                    <Zap size={28} className="text-neon-green" />
                   </div>
                   <div className="text-center">
-                    <p className="font-bold text-lg">Kondisjon</p>
-                    <p className="text-soft-white/60 text-sm">Løping & cardio</p>
+                    <p className="font-bold">Kondisjon</p>
+                    <p className="text-soft-white/60 text-xs">Løping & cardio</p>
                   </div>
                 </button>
               </div>
