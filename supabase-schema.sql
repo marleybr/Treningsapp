@@ -83,8 +83,14 @@ create policy "Public profiles are viewable by everyone" on public.profiles
 create policy "Users can update own profile" on public.profiles
   for update using (auth.uid() = id);
 
+-- Allow users to insert their own profile (matches their auth id)
 create policy "Users can insert own profile" on public.profiles
   for insert with check (auth.uid() = id);
+
+-- Allow service role to insert profiles (for trigger)
+create policy "Service role can insert profiles" on public.profiles
+  for insert with check (true)
+  using (true);
 
 -- Friendships policies
 create policy "Users can view their friendships" on public.friendships

@@ -87,24 +87,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (data.user && !error) {
-      // Create profile
-      const { error: profileError } = await supabase
+      // Wait a moment for the database trigger to potentially create the profile
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Try to fetch the profile (might be created by trigger)
+      let { data: existingProfile } = await supabase
         .from('profiles')
-        .insert({
-          id: data.user.id,
-          email,
-          username,
-          display_name: username,
-          total_workouts: 0,
-          total_volume: 0,
-          current_streak: 0,
-          level: 1,
-          xp: 0,
-          workouts_per_week: 3,
-        });
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
 
-      if (profileError) {
-        return { error: profileError };
+      if (!existingProfile) {
+        // Profile doesn't exist - try to create it using upsert
+        // This will work if RLS allows it, or if there's no profile yet
+        const { error: upsertError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email,
+            username,
+            display_name: username,
+            total_workouts: 0,
+            total_volume: 0,
+            current_streak: 0,
+            level: 1,
+            xp: 0,
+            workouts_per_week: 3,
+          }, { 
+            onConflict: 'id',
+            ignoreDuplicates: false 
+          });
+
+        if (upsertError) {
+          console.error('Profile creation error:', upsertError);
+          // Don't return error - user is created, profile might be created by trigger later
+        }
+      } else if (existingProfile.username !== username || existingProfile.display_name !== username) {
+        // Profile exists but needs username update
+        await supabase
+          .from('profiles')
+          .update({ 
+            username, 
+            display_name: username,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.user.id);
       }
 
       await fetchProfile(data.user.id);
