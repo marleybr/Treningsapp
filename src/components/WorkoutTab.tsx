@@ -501,9 +501,98 @@ export default function WorkoutTab({
   // Workout type selection
   const [showWorkoutTypeSelector, setShowWorkoutTypeSelector] = useState(false);
   const [selectedWorkoutType, setSelectedWorkoutType] = useState<'weights' | 'cardio'>('weights');
+  
+  // Cardio tracking states
+  const [isPaused, setIsPaused] = useState(false);
+  const [gpsPositions, setGpsPositions] = useState<{ lat: number; lng: number; timestamp: number }[]>([]);
+  const [totalDistance, setTotalDistance] = useState(0); // in meters
+  const [currentSpeed, setCurrentSpeed] = useState(0); // km/h
+  const [watchId, setWatchId] = useState<number | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   const [exerciseSearchQuery, setExerciseSearchQuery] = useState('');
 
   // Quick start - ett klikk
+  // Calculate distance between two GPS points using Haversine formula
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // Distance in meters
+  };
+
+  // Start GPS tracking
+  const startGpsTracking = () => {
+    if (!navigator.geolocation) {
+      setGpsError('GPS ikke tilgjengelig på denne enheten');
+      return;
+    }
+
+    setGpsError(null);
+    
+    const id = navigator.geolocation.watchPosition(
+      (position) => {
+        const newPos = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          timestamp: Date.now(),
+        };
+        
+        setGpsPositions(prev => {
+          if (prev.length > 0 && !isPaused) {
+            const lastPos = prev[prev.length - 1];
+            const dist = calculateDistance(lastPos.lat, lastPos.lng, newPos.lat, newPos.lng);
+            
+            // Only count if moved more than 3 meters (filter GPS noise)
+            if (dist > 3) {
+              setTotalDistance(d => d + dist);
+              
+              // Calculate speed (km/h)
+              const timeDiff = (newPos.timestamp - lastPos.timestamp) / 1000 / 3600; // hours
+              if (timeDiff > 0) {
+                const speed = (dist / 1000) / timeDiff;
+                setCurrentSpeed(speed > 50 ? 0 : speed); // Filter unrealistic speeds
+              }
+            }
+          }
+          return [...prev, newPos];
+        });
+      },
+      (error) => {
+        console.error('GPS error:', error);
+        setGpsError('Kunne ikke hente posisjon. Sjekk GPS-tillatelser.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+    
+    setWatchId(id);
+  };
+
+  // Stop GPS tracking
+  const stopGpsTracking = () => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
+  };
+
+  // Toggle pause for cardio
+  const togglePause = () => {
+    setIsPaused(!isPaused);
+    setIsTimerRunning(isPaused); // Resume timer if was paused
+  };
+
   const quickStart = (type: 'weights' | 'cardio' = 'weights') => {
     const today = new Date();
     const dayNames = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
@@ -522,6 +611,50 @@ export default function WorkoutTab({
     setElapsedTime(0);
     setIsTimerRunning(true);
     setShowWorkoutTypeSelector(false);
+    setIsPaused(false);
+    setGpsPositions([]);
+    setTotalDistance(0);
+    setCurrentSpeed(0);
+    
+    // Start GPS tracking for cardio
+    if (type === 'cardio') {
+      startGpsTracking();
+    }
+  };
+  
+  // Finish cardio workout
+  const finishCardioWorkout = () => {
+    stopGpsTracking();
+    
+    // Create a summary exercise entry
+    const cardioSummary = {
+      id: Date.now().toString(),
+      exerciseId: 'cardio-run',
+      exerciseName: 'Løping',
+      sets: [{
+        id: '1',
+        reps: Math.round(totalDistance), // Store distance in meters as "reps"
+        weight: elapsedTime, // Store time in seconds as "weight"
+        completed: true,
+      }],
+      notes: `Distanse: ${(totalDistance / 1000).toFixed(2)} km, Tid: ${formatTime(elapsedTime)}`,
+    };
+    
+    if (currentWorkout) {
+      setCurrentWorkout({
+        ...currentWorkout,
+        exercises: [cardioSummary],
+      });
+    }
+    
+    // Trigger the finish flow
+    finishWorkout();
+  };
+  
+  // Cancel cardio workout
+  const cancelCardioWorkout = () => {
+    stopGpsTracking();
+    cancelWorkout();
   };
 
   // Legg til øvelse - enkelt
@@ -1634,7 +1767,172 @@ export default function WorkoutTab({
     );
   }
 
-  // Aktiv økt
+  // Aktiv CARDIO økt
+  if (currentWorkout && currentWorkout.workoutType === 'cardio') {
+    const distanceKm = totalDistance / 1000;
+    const avgPace = elapsedTime > 0 && distanceKm > 0 
+      ? (elapsedTime / 60) / distanceKm // min/km
+      : 0;
+    const avgPaceMin = Math.floor(avgPace);
+    const avgPaceSec = Math.round((avgPace - avgPaceMin) * 60);
+    
+    return (
+      <div className="space-y-4 pb-32">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-soft-white/60 text-sm flex items-center gap-2">
+              <Zap size={14} className="text-neon-green" />
+              {isPaused ? 'Pause' : 'Pågår'}
+            </p>
+            <h2 className="text-xl font-bold">{currentWorkout.name}</h2>
+          </div>
+          <button onClick={cancelCardioWorkout} className="p-3 rounded-xl bg-white/10 active:scale-95">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Main Timer Display */}
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-neon-green/20 to-emerald-600/20 border border-neon-green/30 text-center">
+          <p className="text-soft-white/60 text-sm mb-2">Tid</p>
+          <p className={`text-5xl font-mono font-bold ${isPaused ? 'text-yellow-400' : 'text-neon-green'}`}>
+            {formatTime(elapsedTime)}
+          </p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-4 rounded-2xl bg-white/5 text-center">
+            <p className="text-soft-white/50 text-xs mb-1">DISTANSE</p>
+            <p className="text-2xl font-bold text-electric">{distanceKm.toFixed(2)}</p>
+            <p className="text-soft-white/40 text-xs">km</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/5 text-center">
+            <p className="text-soft-white/50 text-xs mb-1">TEMPO</p>
+            <p className="text-2xl font-bold text-orange-400">
+              {avgPace > 0 ? `${avgPaceMin}:${avgPaceSec.toString().padStart(2, '0')}` : '--:--'}
+            </p>
+            <p className="text-soft-white/40 text-xs">min/km</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/5 text-center">
+            <p className="text-soft-white/50 text-xs mb-1">FART</p>
+            <p className="text-2xl font-bold text-purple-400">{currentSpeed.toFixed(1)}</p>
+            <p className="text-soft-white/40 text-xs">km/t</p>
+          </div>
+        </div>
+
+        {/* GPS Status */}
+        <div className={`p-3 rounded-xl flex items-center gap-3 ${gpsError ? 'bg-coral/20' : 'bg-neon-green/10'}`}>
+          <div className={`w-3 h-3 rounded-full ${gpsError ? 'bg-coral' : 'bg-neon-green animate-pulse'}`} />
+          <span className="text-sm">
+            {gpsError || (gpsPositions.length > 0 ? `GPS aktiv • ${gpsPositions.length} punkter` : 'Søker GPS-signal...')}
+          </span>
+        </div>
+
+        {/* Map placeholder with route visualization */}
+        <div className="relative h-48 rounded-2xl bg-white/5 overflow-hidden">
+          {gpsPositions.length > 1 ? (
+            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+              {/* Calculate bounds */}
+              {(() => {
+                const lats = gpsPositions.map(p => p.lat);
+                const lngs = gpsPositions.map(p => p.lng);
+                const minLat = Math.min(...lats);
+                const maxLat = Math.max(...lats);
+                const minLng = Math.min(...lngs);
+                const maxLng = Math.max(...lngs);
+                const padding = 0.0001;
+                const latRange = Math.max(maxLat - minLat, padding);
+                const lngRange = Math.max(maxLng - minLng, padding);
+                
+                const points = gpsPositions.map(p => {
+                  const x = ((p.lng - minLng) / lngRange) * 80 + 10;
+                  const y = 90 - ((p.lat - minLat) / latRange) * 80;
+                  return `${x},${y}`;
+                }).join(' ');
+                
+                const lastPoint = gpsPositions[gpsPositions.length - 1];
+                const lastX = ((lastPoint.lng - minLng) / lngRange) * 80 + 10;
+                const lastY = 90 - ((lastPoint.lat - minLat) / latRange) * 80;
+                
+                return (
+                  <>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="url(#routeGradient)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <defs>
+                      <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#00d9ff" />
+                        <stop offset="100%" stopColor="#39ff14" />
+                      </linearGradient>
+                    </defs>
+                    {/* Current position marker */}
+                    <circle cx={lastX} cy={lastY} r="4" fill="#39ff14" />
+                    <circle cx={lastX} cy={lastY} r="8" fill="#39ff14" fillOpacity="0.3" />
+                    {/* Start marker */}
+                    {gpsPositions.length > 0 && (
+                      <circle 
+                        cx={((gpsPositions[0].lng - minLng) / lngRange) * 80 + 10} 
+                        cy={90 - ((gpsPositions[0].lat - minLat) / latRange) * 80} 
+                        r="3" 
+                        fill="#00d9ff" 
+                      />
+                    )}
+                  </>
+                );
+              })()}
+            </svg>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-soft-white/40">
+              <Target size={40} className="mb-2 opacity-50" />
+              <p className="text-sm">Ruten vises her</p>
+              <p className="text-xs">Start å bevege deg...</p>
+            </div>
+          )}
+        </div>
+
+        {/* Control Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={togglePause}
+            className={`flex-1 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-transform ${
+              isPaused 
+                ? 'bg-neon-green text-midnight' 
+                : 'bg-yellow-500 text-midnight'
+            }`}
+          >
+            {isPaused ? (
+              <>
+                <Play size={24} />
+                Fortsett
+              </>
+            ) : (
+              <>
+                <Clock size={24} />
+                Pause
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Finish Button */}
+        <button
+          onClick={finishCardioWorkout}
+          className="w-full py-5 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-transform"
+        >
+          <Trophy size={24} />
+          Fullfør løpetur
+        </button>
+      </div>
+    );
+  }
+
+  // Aktiv STYRKE økt
   if (currentWorkout) {
     return (
       <div className="space-y-4 pb-32">
