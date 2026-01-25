@@ -471,6 +471,69 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
     setSuggestions([]);
   };
 
+  // Regenerate a single meal with AI
+  const regenerateMeal = async (mealType: 'breakfast' | 'lunch' | 'dinner') => {
+    if (!mealPlan) return;
+    
+    const currentMeal = mealPlan.weekPlan[selectedDay].meals[mealType];
+    setEditingMeal({ day: selectedDay, mealType });
+    setIsLoadingSuggestions(true);
+
+    try {
+      const response = await fetch('/api/suggest-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentMeal: currentMeal.name,
+          mealType,
+          targetCalories: currentMeal.calories,
+          preferences: 'Gi meg ett alternativt måltid som er forskjellig fra det nåværende',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.suggestions && data.suggestions.length > 0) {
+        // Pick the first suggestion and apply it directly
+        const newMeal = data.suggestions[0];
+        
+        const updatedPlan = { ...mealPlan };
+        const day = updatedPlan.weekPlan[selectedDay];
+        
+        day.meals[mealType] = {
+          name: newMeal.name,
+          description: newMeal.description,
+          calories: newMeal.calories,
+          protein: newMeal.protein,
+          carbs: newMeal.carbs,
+          fat: newMeal.fat,
+          ingredients: newMeal.ingredients,
+        };
+
+        // Recalculate day totals
+        const breakfast = day.meals.breakfast;
+        const lunch = day.meals.lunch;
+        const dinner = day.meals.dinner;
+        const snacksCals = day.meals.snacks.reduce((sum, s) => sum + s.calories, 0);
+        const snacksProtein = day.meals.snacks.reduce((sum, s) => sum + s.protein, 0);
+        const snacksCarbs = day.meals.snacks.reduce((sum, s) => sum + s.carbs, 0);
+        const snacksFat = day.meals.snacks.reduce((sum, s) => sum + s.fat, 0);
+
+        day.totalCalories = breakfast.calories + lunch.calories + dinner.calories + snacksCals;
+        day.totalProtein = breakfast.protein + lunch.protein + dinner.protein + snacksProtein;
+        day.totalCarbs = breakfast.carbs + lunch.carbs + dinner.carbs + snacksCarbs;
+        day.totalFat = breakfast.fat + lunch.fat + dinner.fat + snacksFat;
+
+        setMealPlan(updatedPlan);
+      }
+    } catch (error) {
+      console.error('Error regenerating meal:', error);
+    }
+
+    setIsLoadingSuggestions(false);
+    setEditingMeal(null);
+  };
+
   // Update meal manually
   const updateMealField = (mealType: 'breakfast' | 'lunch' | 'dinner', field: keyof MealPlanMeal, value: any) => {
     if (!mealPlan) return;
@@ -668,13 +731,27 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <span className="text-2xl">🍳</span>
                     <h4 className="font-bold">Frokost</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.breakfast.calories} kcal</span>
+                    {!isEditingPlan && (
+                      <button
+                        onClick={() => regenerateMeal('breakfast')}
+                        disabled={isLoadingSuggestions && editingMeal?.mealType === 'breakfast'}
+                        className="p-2 rounded-lg bg-electric/20 hover:bg-electric/30 text-electric disabled:opacity-50"
+                        title="Generer nytt måltid"
+                      >
+                        {isLoadingSuggestions && editingMeal?.mealType === 'breakfast' ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
+                      </button>
+                    )}
                     {isEditingPlan && (
                       <button
                         onClick={() => getMealSuggestions('breakfast', currentDay.meals.breakfast.name)}
                         className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
-                        title="Få anbefalinger"
+                        title="Se flere alternativer"
                       >
-                        <RefreshCw size={16} />
+                        <Sparkles size={16} />
                       </button>
                     )}
                   </div>
@@ -750,13 +827,27 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <span className="text-2xl">🥗</span>
                     <h4 className="font-bold">Lunsj</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.lunch.calories} kcal</span>
+                    {!isEditingPlan && (
+                      <button
+                        onClick={() => regenerateMeal('lunch')}
+                        disabled={isLoadingSuggestions && editingMeal?.mealType === 'lunch'}
+                        className="p-2 rounded-lg bg-electric/20 hover:bg-electric/30 text-electric disabled:opacity-50"
+                        title="Generer nytt måltid"
+                      >
+                        {isLoadingSuggestions && editingMeal?.mealType === 'lunch' ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
+                      </button>
+                    )}
                     {isEditingPlan && (
                       <button
                         onClick={() => getMealSuggestions('lunch', currentDay.meals.lunch.name)}
                         className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
-                        title="Få anbefalinger"
+                        title="Se flere alternativer"
                       >
-                        <RefreshCw size={16} />
+                        <Sparkles size={16} />
                       </button>
                     )}
                   </div>
@@ -832,13 +923,27 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <span className="text-2xl">🍽️</span>
                     <h4 className="font-bold">Middag</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.dinner.calories} kcal</span>
+                    {!isEditingPlan && (
+                      <button
+                        onClick={() => regenerateMeal('dinner')}
+                        disabled={isLoadingSuggestions && editingMeal?.mealType === 'dinner'}
+                        className="p-2 rounded-lg bg-electric/20 hover:bg-electric/30 text-electric disabled:opacity-50"
+                        title="Generer nytt måltid"
+                      >
+                        {isLoadingSuggestions && editingMeal?.mealType === 'dinner' ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
+                      </button>
+                    )}
                     {isEditingPlan && (
                       <button
                         onClick={() => getMealSuggestions('dinner', currentDay.meals.dinner.name)}
                         className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
-                        title="Få anbefalinger"
+                        title="Se flere alternativer"
                       >
-                        <RefreshCw size={16} />
+                        <Sparkles size={16} />
                       </button>
                     )}
                   </div>
