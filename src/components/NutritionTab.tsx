@@ -1,8 +1,20 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles, CalendarDays, ChefHat, ShoppingCart, Lightbulb, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles, CalendarDays, ChefHat, ShoppingCart, Lightbulb, ArrowLeft, ArrowRight, Edit3, RefreshCw, Check, RotateCcw } from 'lucide-react';
 import { UserProfile, activityLevelLabels, fitnessGoalLabels } from '@/types';
+
+interface MealSuggestion {
+  name: string;
+  description: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients: string[];
+  prepTime: string;
+  tags: string[];
+}
 
 interface NutritionTabProps {
   profile: UserProfile;
@@ -132,6 +144,13 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
   });
   const [selectedDay, setSelectedDay] = useState<keyof MealPlan['weekPlan']>('monday');
   const [showShoppingList, setShowShoppingList] = useState(false);
+  
+  // Editing states
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [editingMeal, setEditingMeal] = useState<{ day: keyof MealPlan['weekPlan']; mealType: 'breakfast' | 'lunch' | 'dinner' } | null>(null);
+  const [suggestions, setSuggestions] = useState<MealSuggestion[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Meal tracking
   const [meals, setMeals] = useState<MealEntry[]>(() => {
@@ -371,6 +390,114 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
     }
   };
 
+  // Get meal suggestions from AI
+  const getMealSuggestions = async (mealType: 'breakfast' | 'lunch' | 'dinner', currentMealName?: string) => {
+    setIsLoadingSuggestions(true);
+    setSuggestions([]);
+    setShowSuggestions(true);
+    setEditingMeal({ day: selectedDay, mealType });
+
+    const mealCalories = mealType === 'breakfast' ? Math.round(targetCalories * 0.25) :
+                        mealType === 'lunch' ? Math.round(targetCalories * 0.30) :
+                        Math.round(targetCalories * 0.30);
+
+    try {
+      const response = await fetch('/api/suggest-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentMeal: currentMealName,
+          mealType,
+          targetCalories: mealCalories,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.suggestions) {
+        setSuggestions(data.suggestions);
+      }
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+    }
+
+    setIsLoadingSuggestions(false);
+  };
+
+  // Apply a suggestion to the meal plan
+  const applySuggestion = (suggestion: MealSuggestion) => {
+    if (!mealPlan || !editingMeal) return;
+
+    const updatedPlan = { ...mealPlan };
+    const day = updatedPlan.weekPlan[editingMeal.day];
+    
+    day.meals[editingMeal.mealType] = {
+      name: suggestion.name,
+      description: suggestion.description,
+      calories: suggestion.calories,
+      protein: suggestion.protein,
+      carbs: suggestion.carbs,
+      fat: suggestion.fat,
+      ingredients: suggestion.ingredients,
+    };
+
+    // Recalculate day totals
+    const breakfast = day.meals.breakfast;
+    const lunch = day.meals.lunch;
+    const dinner = day.meals.dinner;
+    const snacksCals = day.meals.snacks.reduce((sum, s) => sum + s.calories, 0);
+    const snacksProtein = day.meals.snacks.reduce((sum, s) => sum + s.protein, 0);
+    const snacksCarbs = day.meals.snacks.reduce((sum, s) => sum + s.carbs, 0);
+    const snacksFat = day.meals.snacks.reduce((sum, s) => sum + s.fat, 0);
+
+    day.totalCalories = breakfast.calories + lunch.calories + dinner.calories + snacksCals;
+    day.totalProtein = breakfast.protein + lunch.protein + dinner.protein + snacksProtein;
+    day.totalCarbs = breakfast.carbs + lunch.carbs + dinner.carbs + snacksCarbs;
+    day.totalFat = breakfast.fat + lunch.fat + dinner.fat + snacksFat;
+
+    // Update shopping list
+    const allIngredients = new Set<string>();
+    dayKeys.forEach(dayKey => {
+      const d = updatedPlan.weekPlan[dayKey];
+      d.meals.breakfast.ingredients.forEach(i => allIngredients.add(i));
+      d.meals.lunch.ingredients.forEach(i => allIngredients.add(i));
+      d.meals.dinner.ingredients.forEach(i => allIngredients.add(i));
+    });
+    updatedPlan.shoppingList = Array.from(allIngredients);
+
+    setMealPlan(updatedPlan);
+    setShowSuggestions(false);
+    setEditingMeal(null);
+    setSuggestions([]);
+  };
+
+  // Update meal manually
+  const updateMealField = (mealType: 'breakfast' | 'lunch' | 'dinner', field: keyof MealPlanMeal, value: any) => {
+    if (!mealPlan) return;
+
+    const updatedPlan = { ...mealPlan };
+    const day = updatedPlan.weekPlan[selectedDay];
+    (day.meals[mealType] as any)[field] = value;
+    
+    // Recalculate totals if calories changed
+    if (field === 'calories' || field === 'protein' || field === 'carbs' || field === 'fat') {
+      const breakfast = day.meals.breakfast;
+      const lunch = day.meals.lunch;
+      const dinner = day.meals.dinner;
+      const snacksCals = day.meals.snacks.reduce((sum, s) => sum + s.calories, 0);
+      const snacksProtein = day.meals.snacks.reduce((sum, s) => sum + s.protein, 0);
+      const snacksCarbs = day.meals.snacks.reduce((sum, s) => sum + s.carbs, 0);
+      const snacksFat = day.meals.snacks.reduce((sum, s) => sum + s.fat, 0);
+
+      day.totalCalories = breakfast.calories + lunch.calories + dinner.calories + snacksCals;
+      day.totalProtein = breakfast.protein + lunch.protein + dinner.protein + snacksProtein;
+      day.totalCarbs = breakfast.carbs + lunch.carbs + dinner.carbs + snacksCarbs;
+      day.totalFat = breakfast.fat + lunch.fat + dinner.fat + snacksFat;
+    }
+
+    setMealPlan(updatedPlan);
+  };
+
   // Progress percentage
   const calorieProgress = Math.min((consumedToday.calories / targetCalories) * 100, 100);
   const proteinProgress = Math.min((consumedToday.protein / macros.protein) * 100, 100);
@@ -465,20 +592,156 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                   </div>
                 </div>
 
+                {/* Suggestions Modal */}
+                {showSuggestions && (
+                  <div className="fixed inset-0 z-60 bg-black/80 flex items-end justify-center">
+                    <div className="w-full max-h-[80vh] bg-midnight rounded-t-3xl overflow-hidden">
+                      <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                        <h3 className="font-bold flex items-center gap-2">
+                          <Sparkles size={20} className="text-neon-green" />
+                          Anbefalte alternativer
+                        </h3>
+                        <button onClick={() => { setShowSuggestions(false); setEditingMeal(null); }} className="p-2">
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="p-4 overflow-y-auto max-h-[60vh] space-y-3">
+                        {isLoadingSuggestions ? (
+                          <div className="text-center py-8">
+                            <Loader2 size={40} className="animate-spin text-neon-green mx-auto mb-3" />
+                            <p>Henter anbefalinger...</p>
+                          </div>
+                        ) : suggestions.length > 0 ? (
+                          suggestions.map((suggestion, i) => (
+                            <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <p className="font-bold text-lg">{suggestion.name}</p>
+                                  <p className="text-soft-white/60 text-sm">{suggestion.description}</p>
+                                </div>
+                                <span className="text-electric font-bold">{suggestion.calories} kcal</span>
+                              </div>
+                              <div className="flex gap-4 text-xs mb-3">
+                                <span className="text-red-400">P: {suggestion.protein}g</span>
+                                <span className="text-yellow-400">K: {suggestion.carbs}g</span>
+                                <span className="text-purple-400">F: {suggestion.fat}g</span>
+                                <span className="text-soft-white/50">⏱ {suggestion.prepTime}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mb-3">
+                                {suggestion.tags.map((tag, j) => (
+                                  <span key={j} className="px-2 py-0.5 rounded-full bg-neon-green/20 text-neon-green text-xs">{tag}</span>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => applySuggestion(suggestion)}
+                                className="w-full py-2 rounded-xl bg-neon-green text-midnight font-bold flex items-center justify-center gap-2"
+                              >
+                                <Check size={18} />
+                                Velg dette måltidet
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-center text-soft-white/50 py-8">Ingen anbefalinger funnet</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Mode Toggle */}
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => setIsEditingPlan(!isEditingPlan)}
+                    className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium transition-all ${
+                      isEditingPlan ? 'bg-neon-green text-midnight' : 'bg-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    {isEditingPlan ? <Check size={16} /> : <Edit3 size={16} />}
+                    {isEditingPlan ? 'Ferdig' : 'Rediger'}
+                  </button>
+                </div>
+
                 {/* Breakfast */}
                 <div className="p-4 rounded-2xl bg-white/5">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-2xl">🍳</span>
                     <h4 className="font-bold">Frokost</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.breakfast.calories} kcal</span>
+                    {isEditingPlan && (
+                      <button
+                        onClick={() => getMealSuggestions('breakfast', currentDay.meals.breakfast.name)}
+                        className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
+                        title="Få anbefalinger"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
                   </div>
-                  <p className="font-medium text-lg mb-1">{currentDay.meals.breakfast.name}</p>
-                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.breakfast.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {currentDay.meals.breakfast.ingredients.map((ing, i) => (
-                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
-                    ))}
-                  </div>
+                  {isEditingPlan ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={currentDay.meals.breakfast.name}
+                        onChange={(e) => updateMealField('breakfast', 'name', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none font-medium"
+                      />
+                      <textarea
+                        value={currentDay.meals.breakfast.description}
+                        onChange={(e) => updateMealField('breakfast', 'description', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none text-sm resize-none"
+                        rows={2}
+                      />
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-soft-white/50">Kcal</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.breakfast.calories}
+                            onChange={(e) => updateMealField('breakfast', 'calories', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Protein</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.breakfast.protein}
+                            onChange={(e) => updateMealField('breakfast', 'protein', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Karbs</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.breakfast.carbs}
+                            onChange={(e) => updateMealField('breakfast', 'carbs', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Fett</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.breakfast.fat}
+                            onChange={(e) => updateMealField('breakfast', 'fat', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium text-lg mb-1">{currentDay.meals.breakfast.name}</p>
+                      <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.breakfast.description}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentDay.meals.breakfast.ingredients.map((ing, i) => (
+                          <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Lunch */}
@@ -487,14 +750,80 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <span className="text-2xl">🥗</span>
                     <h4 className="font-bold">Lunsj</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.lunch.calories} kcal</span>
+                    {isEditingPlan && (
+                      <button
+                        onClick={() => getMealSuggestions('lunch', currentDay.meals.lunch.name)}
+                        className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
+                        title="Få anbefalinger"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
                   </div>
-                  <p className="font-medium text-lg mb-1">{currentDay.meals.lunch.name}</p>
-                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.lunch.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {currentDay.meals.lunch.ingredients.map((ing, i) => (
-                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
-                    ))}
-                  </div>
+                  {isEditingPlan ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={currentDay.meals.lunch.name}
+                        onChange={(e) => updateMealField('lunch', 'name', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none font-medium"
+                      />
+                      <textarea
+                        value={currentDay.meals.lunch.description}
+                        onChange={(e) => updateMealField('lunch', 'description', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none text-sm resize-none"
+                        rows={2}
+                      />
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-soft-white/50">Kcal</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.lunch.calories}
+                            onChange={(e) => updateMealField('lunch', 'calories', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Protein</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.lunch.protein}
+                            onChange={(e) => updateMealField('lunch', 'protein', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Karbs</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.lunch.carbs}
+                            onChange={(e) => updateMealField('lunch', 'carbs', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Fett</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.lunch.fat}
+                            onChange={(e) => updateMealField('lunch', 'fat', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium text-lg mb-1">{currentDay.meals.lunch.name}</p>
+                      <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.lunch.description}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentDay.meals.lunch.ingredients.map((ing, i) => (
+                          <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Dinner */}
@@ -503,14 +832,80 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <span className="text-2xl">🍽️</span>
                     <h4 className="font-bold">Middag</h4>
                     <span className="ml-auto text-electric font-bold">{currentDay.meals.dinner.calories} kcal</span>
+                    {isEditingPlan && (
+                      <button
+                        onClick={() => getMealSuggestions('dinner', currentDay.meals.dinner.name)}
+                        className="p-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green"
+                        title="Få anbefalinger"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
                   </div>
-                  <p className="font-medium text-lg mb-1">{currentDay.meals.dinner.name}</p>
-                  <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.dinner.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {currentDay.meals.dinner.ingredients.map((ing, i) => (
-                      <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
-                    ))}
-                  </div>
+                  {isEditingPlan ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={currentDay.meals.dinner.name}
+                        onChange={(e) => updateMealField('dinner', 'name', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none font-medium"
+                      />
+                      <textarea
+                        value={currentDay.meals.dinner.description}
+                        onChange={(e) => updateMealField('dinner', 'description', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 focus:border-electric outline-none text-sm resize-none"
+                        rows={2}
+                      />
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-soft-white/50">Kcal</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.dinner.calories}
+                            onChange={(e) => updateMealField('dinner', 'calories', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Protein</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.dinner.protein}
+                            onChange={(e) => updateMealField('dinner', 'protein', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Karbs</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.dinner.carbs}
+                            onChange={(e) => updateMealField('dinner', 'carbs', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-soft-white/50">Fett</label>
+                          <input
+                            type="number"
+                            value={currentDay.meals.dinner.fat}
+                            onChange={(e) => updateMealField('dinner', 'fat', parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium text-lg mb-1">{currentDay.meals.dinner.name}</p>
+                      <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.dinner.description}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentDay.meals.dinner.ingredients.map((ing, i) => (
+                          <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Snacks */}
