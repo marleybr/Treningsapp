@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { User, Edit2, Save, X, LogOut, Ruler, Scale, Target, Activity, Calendar, Trash2, Trophy, Zap, Flame, Star, Lock, Award, Sparkles, Dumbbell, ChevronDown, ChevronUp, Clock } from 'lucide-react';
-import { UserProfile, GameStats, ACHIEVEMENTS, workoutsToNextLevel, getLevelTitle, activityLevelLabels, fitnessGoalLabels, WORKOUTS_PER_LEVEL, Workout, WorkoutExercise } from '@/types';
+import { UserProfile, GameStats, ACHIEVEMENTS, workoutsToNextLevel, getLevelTitle, getWorkoutsPerLevel, activityLevelLabels, fitnessGoalLabels, Workout, WorkoutExercise } from '@/types';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -55,7 +55,7 @@ export default function ProfileTab({ profile, setProfile, gameStats, workouts = 
 
   const level = gameStats?.level || 1;
   const levelTitle = getLevelTitle(level);
-  const levelProgress = gameStats ? workoutsToNextLevel(gameStats.totalWorkouts) : null;
+  const levelProgress = gameStats ? workoutsToNextLevel(gameStats.totalWorkouts, profile?.workoutsPerWeek) : null;
 
   const handleSave = () => {
     const updatedProfile: UserProfile = {
@@ -180,7 +180,7 @@ export default function ProfileTab({ profile, setProfile, gameStats, workouts = 
           </div>
           <div className="flex justify-between text-sm text-soft-white/60">
             <span>Nivå {level}</span>
-            <span>{levelProgress.current} / {WORKOUTS_PER_LEVEL} økter til nivå {level + 1}</span>
+            <span>{levelProgress.current} / {levelProgress.required} økter til nivå {level + 1}</span>
           </div>
         </div>
       )}

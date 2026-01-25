@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Dumbbell, Flame, Trophy, Zap, Target, ChevronRight, Sparkles } from 'lucide-react';
-import { Workout, BodyStats, UserProfile, GameStats, workoutsToNextLevel, getLevelTitle, WORKOUTS_PER_LEVEL, ACHIEVEMENTS } from '@/types';
+import { Workout, BodyStats, UserProfile, GameStats, workoutsToNextLevel, getLevelTitle, getWorkoutsPerLevel, ACHIEVEMENTS } from '@/types';
 import { format, isToday, parseISO, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -65,7 +65,7 @@ export default function HomeTab({ workouts, setActiveTab, gameStats, profile, cu
   }, []);
 
   const todaysWorkout = workouts.find(w => isToday(parseISO(w.date)));
-  const levelProgress = gameStats ? workoutsToNextLevel(gameStats.totalWorkouts) : null;
+  const levelProgress = gameStats ? workoutsToNextLevel(gameStats.totalWorkouts, profile?.workoutsPerWeek) : null;
   const level = gameStats?.level || 1;
   const levelTitle = getLevelTitle(level);
 
@@ -158,7 +158,7 @@ export default function HomeTab({ workouts, setActiveTab, gameStats, profile, cu
           </h2>
           
           <p className={`text-soft-white/50 text-sm mt-1 transition-all duration-700 delay-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-            {levelProgress?.current} / {WORKOUTS_PER_LEVEL} økter til neste nivå
+            {levelProgress?.current} / {levelProgress?.required} økter til neste nivå
           </p>
         </div>
       </div>

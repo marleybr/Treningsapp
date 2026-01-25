@@ -113,11 +113,20 @@ export const XP_PER_WORKOUT = 50;
 export const XP_PER_KG = 0.1;
 export const XP_STREAK_BONUS = 25; // per dag i streak
 
-// Nivå beregning - 15 økter per nivå
-export const WORKOUTS_PER_LEVEL = 15;
+// Nivå beregning - basert på brukerens ukentlige treningsmål
+// Standard: 4 økter per nivå (ca. 1 uke med trening = 1 nivå)
+export const DEFAULT_WORKOUTS_PER_LEVEL = 4;
 
-export const calculateLevel = (totalWorkouts: number): number => {
-  return Math.floor(totalWorkouts / WORKOUTS_PER_LEVEL) + 1;
+// Beregn økter per nivå basert på brukerens ukentlige mål
+export const getWorkoutsPerLevel = (workoutsPerWeek?: number): number => {
+  if (!workoutsPerWeek) return DEFAULT_WORKOUTS_PER_LEVEL;
+  // Nivå opp etter ca. 1 uke med trening (3-5 økter basert på mål)
+  return Math.max(3, Math.min(5, workoutsPerWeek));
+};
+
+export const calculateLevel = (totalWorkouts: number, workoutsPerWeek?: number): number => {
+  const perLevel = getWorkoutsPerLevel(workoutsPerWeek);
+  return Math.floor(totalWorkouts / perLevel) + 1;
 };
 
 export const calculateLevelFromXP = (xp: number): number => {
@@ -125,15 +134,16 @@ export const calculateLevelFromXP = (xp: number): number => {
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 };
 
-export const workoutsToNextLevel = (totalWorkouts: number): { current: number; required: number; progress: number } => {
-  const currentLevel = calculateLevel(totalWorkouts);
-  const workoutsForCurrentLevel = (currentLevel - 1) * WORKOUTS_PER_LEVEL;
+export const workoutsToNextLevel = (totalWorkouts: number, workoutsPerWeek?: number): { current: number; required: number; progress: number } => {
+  const perLevel = getWorkoutsPerLevel(workoutsPerWeek);
+  const currentLevel = calculateLevel(totalWorkouts, workoutsPerWeek);
+  const workoutsForCurrentLevel = (currentLevel - 1) * perLevel;
   const workoutsInCurrentLevel = totalWorkouts - workoutsForCurrentLevel;
   
   return {
     current: workoutsInCurrentLevel,
-    required: WORKOUTS_PER_LEVEL,
-    progress: (workoutsInCurrentLevel / WORKOUTS_PER_LEVEL) * 100,
+    required: perLevel,
+    progress: (workoutsInCurrentLevel / perLevel) * 100,
   };
 };
 

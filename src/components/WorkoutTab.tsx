@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, X, Check, Clock, Trophy, Zap, Star, Sparkles, Minus, Brain, Calendar, ChevronRight, Dumbbell, Play, Target, AlertTriangle, Flame, Pencil, Trash2, GripVertical, Save, ChevronDown, ChevronUp, Search } from 'lucide-react';
-import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, TrainingPlan, TrainingDay, goalLabels, UserProfile, experienceLevelLabels, focusAreaLabels, PlannedExercise } from '@/types';
+import { Workout, WorkoutExercise, GameStats, ACHIEVEMENTS, XP_PER_WORKOUT, XP_PER_KG, XP_STREAK_BONUS, calculateLevel, getWorkoutsPerLevel, TrainingPlan, TrainingDay, goalLabels, UserProfile, experienceLevelLabels, focusAreaLabels, PlannedExercise } from '@/types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -785,7 +785,7 @@ export default function WorkoutTab({
     setGameStats({
       ...gameStats,
       xp: gameStats.xp + stats.xp,
-      level: calculateLevel(stats.newTotal),
+      level: calculateLevel(stats.newTotal, userProfile?.workoutsPerWeek),
       currentStreak: stats.streak,
       longestStreak: Math.max(gameStats.longestStreak, stats.streak),
       lastWorkoutDate: new Date().toISOString(),
