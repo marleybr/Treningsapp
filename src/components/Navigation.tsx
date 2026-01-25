@@ -1,6 +1,6 @@
 'use client';
 
-import { Dumbbell, TrendingUp, Home, User, Apple } from 'lucide-react';
+import { Dumbbell, TrendingUp, Home, User, Apple, Users } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -12,8 +12,8 @@ export default function Navigation({ activeTab, setActiveTab, hasActiveWorkout }
   const tabs = [
     { id: 'home', label: 'Hjem', icon: Home },
     { id: 'workout', label: 'Trening', icon: Dumbbell },
+    { id: 'social', label: 'Sosialt', icon: Users },
     { id: 'nutrition', label: 'Kosthold', icon: Apple },
-    { id: 'progress', label: 'Fremgang', icon: TrendingUp },
     { id: 'profile', label: 'Profil', icon: User },
   ];
 

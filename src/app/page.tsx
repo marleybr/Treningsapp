@@ -10,7 +10,9 @@ import WorkoutTab from '@/components/WorkoutTab';
 import NutritionTab from '@/components/NutritionTab';
 import ProgressTab from '@/components/ProgressTab';
 import ProfileTab from '@/components/ProfileTab';
+import SocialTab from '@/components/SocialTab';
 import Onboarding from '@/components/Onboarding';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { subDays, differenceInDays, startOfWeek } from 'date-fns';
 
 const initialGameStats: GameStats = {
@@ -185,6 +187,8 @@ export default function Home() {
             profile={profile}
           />
         );
+      case 'social':
+        return <SocialTab />;
       case 'profile':
         return (
           <ProfileTab 
@@ -200,33 +204,35 @@ export default function Home() {
   };
 
   return (
-    <div id="app-container" className="min-h-screen min-h-[100dvh]">
-      {/* Background Pattern */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-electric/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute top-1/3 right-0 w-80 h-80 bg-neon-green/5 rounded-full blur-3xl translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-coral/5 rounded-full blur-3xl translate-y-1/2"></div>
-      </div>
+    <AuthProvider>
+      <div id="app-container" className="min-h-screen min-h-[100dvh]">
+        {/* Background Pattern */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-electric/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+          <div className="absolute top-1/3 right-0 w-80 h-80 bg-neon-green/5 rounded-full blur-3xl translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-coral/5 rounded-full blur-3xl translate-y-1/2"></div>
+        </div>
 
-      {/* Main Content */}
-      <div className="max-w-lg mx-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <Header 
-          streak={calculateStreak()} 
-          profile={profile} 
-          gameStats={gameStats}
+        {/* Main Content */}
+        <div className="max-w-lg mx-auto" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+          <Header 
+            streak={calculateStreak()} 
+            profile={profile} 
+            gameStats={gameStats}
+          />
+          
+          <main className="px-4 sm:px-6 pb-36">
+            {renderTab()}
+          </main>
+        </div>
+
+        {/* Fixed Navigation */}
+        <Navigation 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          hasActiveWorkout={currentWorkout !== null}
         />
-        
-        <main className="px-4 sm:px-6 pb-36">
-          {renderTab()}
-        </main>
       </div>
-
-      {/* Fixed Navigation */}
-      <Navigation 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        hasActiveWorkout={currentWorkout !== null}
-      />
-    </div>
+    </AuthProvider>
   );
 }
