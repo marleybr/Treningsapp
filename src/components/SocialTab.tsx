@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target, LogIn, UserCircle, Share2, Star, Sparkles } from 'lucide-react';
+import { Users, Search, UserPlus, Trophy, Swords, Check, X, Crown, Medal, Award, Flame, Dumbbell, Zap, ChevronRight, Clock, Target, LogIn, UserCircle, Share2, Star, Sparkles, LogOut, Camera, Image, Plus, Send } from 'lucide-react';
 import { supabase, DBProfile, DBFriendship, DBWorkoutShare, DBChallenge } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
@@ -12,7 +12,7 @@ import AuthScreen from './AuthScreen';
 type TabType = 'friends' | 'leaderboard' | 'challenges' | 'feed';
 
 export default function SocialTab() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<DBProfile[]>([]);
@@ -26,6 +26,7 @@ export default function SocialTab() {
   const [selectedFriend, setSelectedFriend] = useState<DBProfile | null>(null);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [showShareWorkout, setShowShareWorkout] = useState(false);
 
   // Fetch friends
   const fetchFriends = async () => {
@@ -64,12 +65,12 @@ export default function SocialTab() {
     setPendingRequests((data || []) as any);
   };
 
-  // Fetch leaderboard
+  // Fetch leaderboard - sorted by XP
   const fetchLeaderboard = async () => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .order('total_workouts', { ascending: false })
+      .order('xp', { ascending: false })
       .limit(20);
 
     setLeaderboard(data || []);
@@ -255,6 +256,30 @@ export default function SocialTab() {
     setViewingProfile(null);
   };
 
+  // Share workout
+  const shareWorkout = async (workoutData: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string }) => {
+    if (!user) return;
+
+    await supabase
+      .from('workout_shares')
+      .insert({
+        user_id: user.id,
+        workout_name: workoutData.name,
+        duration_minutes: workoutData.duration,
+        volume: workoutData.volume,
+        workout_type: workoutData.type,
+        distance_km: workoutData.distance,
+      });
+
+    setShowShareWorkout(false);
+    fetchFeed();
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    await signOut();
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -426,10 +451,31 @@ export default function SocialTab() {
 
   return (
     <div className="space-y-6 pb-32">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-2xl font-display font-bold">Sosialt</h1>
-        <p className="text-soft-white/60">Tren med venner</p>
+      {/* Header with Profile */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-electric to-coral flex items-center justify-center">
+              <span className="text-white font-bold text-lg">{profile.display_name[0].toUpperCase()}</span>
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold flex items-center justify-center border-2 border-midnight">
+              <span className="text-[10px] font-bold text-midnight">{profile.level}</span>
+            </div>
+          </div>
+          <div>
+            <p className="font-bold">{profile.display_name}</p>
+            <p className="text-soft-white/60 text-sm flex items-center gap-1">
+              <Zap size={12} className="text-gold" />
+              {profile.xp.toLocaleString()} XP
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="p-2 rounded-lg bg-white/10 text-soft-white/60 hover:bg-coral/20 hover:text-coral transition-all"
+        >
+          <LogOut size={20} />
+        </button>
       </div>
 
       {/* Tab Navigation */}
@@ -606,10 +652,11 @@ export default function SocialTab() {
         <div className="space-y-4">
           {/* Top 3 */}
           <div className="grid grid-cols-3 gap-3">
-            {leaderboard.slice(0, 3).map((user, index) => (
+            {leaderboard.slice(0, 3).map((leaderUser, index) => (
               <div
-                key={user.id}
-                className={`p-4 rounded-2xl text-center ${
+                key={leaderUser.id}
+                onClick={() => setViewingProfile(leaderUser.id)}
+                className={`p-4 rounded-2xl text-center cursor-pointer transition-all hover:scale-105 ${
                   index === 0 ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30' :
                   index === 1 ? 'bg-gradient-to-br from-gray-400/20 to-gray-500/20 border border-gray-400/30' :
                   'bg-gradient-to-br from-orange-600/20 to-orange-700/20 border border-orange-600/30'
@@ -619,11 +666,11 @@ export default function SocialTab() {
                  index === 1 ? <Medal className="mx-auto text-gray-400 mb-2" size={24} /> :
                  <Award className="mx-auto text-orange-600 mb-2" size={24} />}
                 <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-2">
-                  <span className="text-lg font-bold">{user.display_name[0].toUpperCase()}</span>
+                  <span className="text-lg font-bold">{leaderUser.display_name[0].toUpperCase()}</span>
                 </div>
-                <p className="font-bold text-sm truncate">{user.display_name}</p>
-                <p className="text-2xl font-bold mt-1">{user.total_workouts}</p>
-                <p className="text-xs text-soft-white/50">økter</p>
+                <p className="font-bold text-sm truncate">{leaderUser.display_name}</p>
+                <p className="text-xl font-bold mt-1 text-gold">{leaderUser.xp.toLocaleString()}</p>
+                <p className="text-xs text-soft-white/50">XP</p>
               </div>
             ))}
           </div>
@@ -648,8 +695,8 @@ export default function SocialTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <p className="font-bold text-electric">{leaderUser.total_workouts}</p>
-                    <p className="text-xs text-soft-white/50">økter</p>
+                    <p className="font-bold text-gold">{leaderUser.xp.toLocaleString()}</p>
+                    <p className="text-xs text-soft-white/50">XP</p>
                   </div>
                   <ChevronRight size={16} className="text-soft-white/30" />
                 </div>
@@ -761,6 +808,15 @@ export default function SocialTab() {
       {/* Activity Feed Tab */}
       {activeTab === 'feed' && (
         <div className="space-y-4">
+          {/* Share Workout Button */}
+          <button
+            onClick={() => setShowShareWorkout(true)}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold flex items-center justify-center gap-2"
+          >
+            <Camera size={20} />
+            Del treningsøkt
+          </button>
+
           {feed.length === 0 ? (
             <div className="text-center py-12">
               <Flame size={48} className="mx-auto text-soft-white/20 mb-4" />
@@ -842,6 +898,14 @@ export default function SocialTab() {
           }}
           onRemoveFriend={removeFriend}
           isFriend={friends.some(f => f.id === viewingProfile)}
+        />
+      )}
+
+      {/* Share Workout Modal */}
+      {showShareWorkout && (
+        <ShareWorkoutModal
+          onClose={() => setShowShareWorkout(false)}
+          onShare={shareWorkout}
         />
       )}
     </div>
@@ -954,6 +1018,177 @@ function ChallengeModal({
             className="w-full py-4 rounded-xl bg-gradient-to-r from-coral to-orange-500 text-white font-bold disabled:opacity-50"
           >
             Send utfordring
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Share Workout Modal Component
+function ShareWorkoutModal({
+  onClose,
+  onShare,
+}: {
+  onClose: () => void;
+  onShare: (data: { name: string; duration: number; volume: number; type: 'weights' | 'cardio'; distance?: number; imageUrl?: string }) => void;
+}) {
+  const [workoutName, setWorkoutName] = useState('');
+  const [duration, setDuration] = useState('');
+  const [volume, setVolume] = useState('');
+  const [distance, setDistance] = useState('');
+  const [workoutType, setWorkoutType] = useState<'weights' | 'cardio'>('weights');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleShare = () => {
+    if (!workoutName || !duration) return;
+    
+    onShare({
+      name: workoutName,
+      duration: parseInt(duration),
+      volume: parseInt(volume) || 0,
+      type: workoutType,
+      distance: distance ? parseFloat(distance) : undefined,
+      imageUrl: imagePreview || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-midnight rounded-2xl p-6 my-4">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold">Del treningsøkt</h3>
+          <button onClick={onClose} className="p-2 rounded-lg bg-white/10">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Legg til bilde (valgfritt)</label>
+            <div className="relative">
+              {imagePreview ? (
+                <div className="relative rounded-xl overflow-hidden">
+                  <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover" />
+                  <button
+                    onClick={() => setImagePreview(null)}
+                    className="absolute top-2 right-2 p-2 rounded-full bg-black/50"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-white/20 cursor-pointer hover:border-electric/50 transition-all">
+                  <Camera size={32} className="text-soft-white/40 mb-2" />
+                  <span className="text-soft-white/60 text-sm">Ta bilde eller velg fra galleri</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Workout Type */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Type trening</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setWorkoutType('weights')}
+                className={`p-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                  workoutType === 'weights' ? 'bg-electric text-midnight' : 'bg-white/5'
+                }`}
+              >
+                <Dumbbell size={20} />
+                <span>Styrke</span>
+              </button>
+              <button
+                onClick={() => setWorkoutType('cardio')}
+                className={`p-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                  workoutType === 'cardio' ? 'bg-neon-green text-midnight' : 'bg-white/5'
+                }`}
+              >
+                <Zap size={20} />
+                <span>Cardio</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Workout Name */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Navn på økten</label>
+            <input
+              type="text"
+              value={workoutName}
+              onChange={(e) => setWorkoutName(e.target.value)}
+              placeholder="f.eks. Beindag, Morgenløp..."
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+            />
+          </div>
+
+          {/* Duration */}
+          <div>
+            <label className="block text-sm text-soft-white/60 mb-2">Varighet (minutter)</label>
+            <input
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="45"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+            />
+          </div>
+
+          {/* Volume or Distance based on type */}
+          {workoutType === 'weights' ? (
+            <div>
+              <label className="block text-sm text-soft-white/60 mb-2">Total vekt løftet (kg)</label>
+              <input
+                type="number"
+                value={volume}
+                onChange={(e) => setVolume(e.target.value)}
+                placeholder="5000"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-soft-white/60 mb-2">Distanse (km)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={distance}
+                onChange={(e) => setDistance(e.target.value)}
+                placeholder="5.0"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-electric outline-none"
+              />
+            </div>
+          )}
+
+          {/* Share Button */}
+          <button
+            onClick={handleShare}
+            disabled={!workoutName || !duration}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Send size={20} />
+            Del med venner
           </button>
         </div>
       </div>
