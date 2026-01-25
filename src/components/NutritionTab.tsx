@@ -1,8 +1,18 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles, CalendarDays, ChefHat, ShoppingCart, Lightbulb, ArrowLeft, ArrowRight, Edit3, RefreshCw, Check, RotateCcw } from 'lucide-react';
+import { Flame, Apple, Beef, Wheat, Droplets, Target, TrendingDown, TrendingUp, Minus, Info, ChevronDown, ChevronUp, Calculator, Zap, Camera, X, Plus, Trash2, Loader2, Image as ImageIcon, Sparkles, CalendarDays, ChefHat, ShoppingCart, Lightbulb, ArrowLeft, ArrowRight, Edit3, RefreshCw, Check, RotateCcw, BookOpen, Clock, Users } from 'lucide-react';
 import { UserProfile, activityLevelLabels, fitnessGoalLabels } from '@/types';
+
+interface Recipe {
+  title: string;
+  prepTime: string;
+  cookTime: string;
+  servings: number;
+  ingredients: string[];
+  steps: string[];
+  tips: string;
+}
 
 interface MealSuggestion {
   name: string;
@@ -151,6 +161,11 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
   const [suggestions, setSuggestions] = useState<MealSuggestion[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // Recipe states
+  const [showRecipe, setShowRecipe] = useState(false);
+  const [currentRecipe, setCurrentRecipe] = useState<Recipe | null>(null);
+  const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
 
   // Meal tracking
   const [meals, setMeals] = useState<MealEntry[]>(() => {
@@ -534,6 +549,34 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
     setEditingMeal(null);
   };
 
+  // Get recipe for a meal
+  const getRecipe = async (meal: MealPlanMeal) => {
+    setShowRecipe(true);
+    setIsLoadingRecipe(true);
+    setCurrentRecipe(null);
+
+    try {
+      const response = await fetch('/api/get-recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealName: meal.name,
+          ingredients: meal.ingredients,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.recipe) {
+        setCurrentRecipe(data.recipe);
+      }
+    } catch (error) {
+      console.error('Error getting recipe:', error);
+    }
+
+    setIsLoadingRecipe(false);
+  };
+
   // Update meal manually
   const updateMealField = (mealType: 'breakfast' | 'lunch' | 'dinner', field: keyof MealPlanMeal, value: any) => {
     if (!mealPlan) return;
@@ -654,6 +697,98 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <p className="text-xs text-soft-white/50">Fett</p>
                   </div>
                 </div>
+
+                {/* Recipe Modal */}
+                {showRecipe && (
+                  <div className="fixed inset-0 z-60 bg-black/80 flex items-end justify-center">
+                    <div className="w-full max-h-[85vh] bg-midnight rounded-t-3xl overflow-hidden">
+                      <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                        <h3 className="font-bold flex items-center gap-2">
+                          <BookOpen size={20} className="text-orange-400" />
+                          Oppskrift
+                        </h3>
+                        <button onClick={() => setShowRecipe(false)} className="p-2">
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="p-4 overflow-y-auto max-h-[70vh]">
+                        {isLoadingRecipe ? (
+                          <div className="text-center py-12">
+                            <Loader2 size={40} className="animate-spin text-orange-400 mx-auto mb-3" />
+                            <p>Henter oppskrift...</p>
+                          </div>
+                        ) : currentRecipe ? (
+                          <div className="space-y-4">
+                            {/* Title */}
+                            <h2 className="text-2xl font-bold">{currentRecipe.title}</h2>
+                            
+                            {/* Time & Servings */}
+                            <div className="flex gap-4 text-sm">
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                                <Clock size={16} className="text-orange-400" />
+                                <span>Prep: {currentRecipe.prepTime}</span>
+                              </div>
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                                <Clock size={16} className="text-red-400" />
+                                <span>Kok: {currentRecipe.cookTime}</span>
+                              </div>
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+                                <Users size={16} className="text-electric" />
+                                <span>{currentRecipe.servings} pers</span>
+                              </div>
+                            </div>
+
+                            {/* Ingredients */}
+                            <div className="p-4 rounded-2xl bg-white/5">
+                              <h4 className="font-bold mb-3 flex items-center gap-2">
+                                <ShoppingCart size={18} className="text-neon-green" />
+                                Ingredienser
+                              </h4>
+                              <ul className="space-y-2">
+                                {currentRecipe.ingredients.map((ing, i) => (
+                                  <li key={i} className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-neon-green" />
+                                    <span>{ing}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Steps */}
+                            <div className="p-4 rounded-2xl bg-white/5">
+                              <h4 className="font-bold mb-3 flex items-center gap-2">
+                                <ChefHat size={18} className="text-orange-400" />
+                                Fremgangsmåte
+                              </h4>
+                              <ol className="space-y-3">
+                                {currentRecipe.steps.map((step, i) => (
+                                  <li key={i} className="flex gap-3">
+                                    <span className="w-6 h-6 rounded-full bg-orange-400 text-midnight flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                      {i + 1}
+                                    </span>
+                                    <span className="text-soft-white/80">{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+
+                            {/* Tips */}
+                            {currentRecipe.tips && (
+                              <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20">
+                                <div className="flex items-start gap-2">
+                                  <Lightbulb size={18} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                                  <p className="text-sm text-soft-white/80">{currentRecipe.tips}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-center text-soft-white/50 py-8">Kunne ikke hente oppskrift</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Suggestions Modal */}
                 {showSuggestions && (
@@ -812,11 +947,18 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <>
                       <p className="font-medium text-lg mb-1">{currentDay.meals.breakfast.name}</p>
                       <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.breakfast.description}</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 mb-3">
                         {currentDay.meals.breakfast.ingredients.map((ing, i) => (
                           <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
                         ))}
                       </div>
+                      <button
+                        onClick={() => getRecipe(currentDay.meals.breakfast)}
+                        className="w-full py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-medium text-sm flex items-center justify-center gap-2"
+                      >
+                        <BookOpen size={16} />
+                        Se oppskrift
+                      </button>
                     </>
                   )}
                 </div>
@@ -908,11 +1050,18 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <>
                       <p className="font-medium text-lg mb-1">{currentDay.meals.lunch.name}</p>
                       <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.lunch.description}</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 mb-3">
                         {currentDay.meals.lunch.ingredients.map((ing, i) => (
                           <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
                         ))}
                       </div>
+                      <button
+                        onClick={() => getRecipe(currentDay.meals.lunch)}
+                        className="w-full py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-medium text-sm flex items-center justify-center gap-2"
+                      >
+                        <BookOpen size={16} />
+                        Se oppskrift
+                      </button>
                     </>
                   )}
                 </div>
@@ -1004,11 +1153,18 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                     <>
                       <p className="font-medium text-lg mb-1">{currentDay.meals.dinner.name}</p>
                       <p className="text-soft-white/60 text-sm mb-3">{currentDay.meals.dinner.description}</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 mb-3">
                         {currentDay.meals.dinner.ingredients.map((ing, i) => (
                           <span key={i} className="px-2 py-1 rounded-lg bg-white/10 text-xs">{ing}</span>
                         ))}
                       </div>
+                      <button
+                        onClick={() => getRecipe(currentDay.meals.dinner)}
+                        className="w-full py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-medium text-sm flex items-center justify-center gap-2"
+                      >
+                        <BookOpen size={16} />
+                        Se oppskrift
+                      </button>
                     </>
                   )}
                 </div>
