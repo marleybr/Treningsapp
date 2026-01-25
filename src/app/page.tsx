@@ -216,7 +216,7 @@ export default function Home() {
           gameStats={gameStats}
         />
         
-        <main className="px-4 sm:px-6 pb-32">
+        <main className="px-4 sm:px-6 pb-36">
           {renderTab()}
         </main>
       </div>

@@ -105,7 +105,7 @@ export default function ProfileTab({ profile, setProfile, gameStats, workouts = 
   const lockedAchievements = ACHIEVEMENTS.filter(a => !gameStats?.achievements.includes(a.id));
 
   return (
-    <div className="space-y-6 animate-fadeInUp pb-24">
+    <div className="space-y-6 animate-fadeInUp pb-32">
       {/* Profile Header with Level */}
       <div className="card text-center relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-gold/10 rounded-full blur-2xl"></div>

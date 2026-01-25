@@ -91,7 +91,7 @@ export default function GoalsTab({ goals, setGoals }: GoalsTabProps) {
   ];
 
   return (
-    <div className="space-y-6 animate-fadeInUp pb-24">
+    <div className="space-y-6 animate-fadeInUp pb-32">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-display font-bold">Mål</h2>
         <button 

@@ -1290,19 +1290,19 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
   if (showScanner) {
     return (
       <div className="fixed inset-0 z-50 bg-midnight">
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           {/* Header */}
-          <div className="p-4 flex items-center justify-between border-b border-white/10">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Camera size={24} className="text-electric" />
+          <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-white/10 bg-midnight/95 backdrop-blur-lg">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Camera size={22} className="text-electric" />
               Matskanner
             </h2>
-            <button onClick={closeScanner} className="p-2 hover:bg-white/10 rounded-lg">
+            <button onClick={closeScanner} className="w-11 h-11 flex items-center justify-center hover:bg-white/10 rounded-xl active:scale-95">
               <X size={24} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto ios-scroll p-4 space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 120px)' }}>
             {/* Meal Type Selector */}
             <div>
               <p className="text-soft-white/60 text-sm mb-2">Velg måltidstype:</p>
@@ -1439,26 +1439,34 @@ export default function NutritionTab({ profile }: NutritionTabProps) {
                       </div>
                     </div>
 
-                    {/* Add Button */}
-                    <button
-                      onClick={addMealFromAnalysis}
-                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-2"
-                    >
-                      <Plus size={24} />
-                      Legg til {mealTypeLabels[selectedMealType].label.toLowerCase()}
-                    </button>
                   </div>
                 )}
               </div>
             )}
           </div>
+
+          {/* Fixed Add Button at Bottom */}
+          {analysisResult && !isAnalyzing && (
+            <div 
+              className="flex-shrink-0 p-4 bg-midnight/95 backdrop-blur-lg border-t border-white/10"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+            >
+              <button
+                onClick={addMealFromAnalysis}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-electric to-neon-green text-midnight font-bold text-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              >
+                <Plus size={24} />
+                Legg til {mealTypeLabels[selectedMealType].label.toLowerCase()}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-32">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-2xl font-display font-bold">Kosthold</h1>

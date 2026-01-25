@@ -444,3 +444,27 @@ body {
   opacity: 0.7;
 }
 
+/* Ensure content is always reachable above fixed navigation */
+.content-above-nav {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+/* Make all scroll containers work smoothly */
+[class*="overflow-y-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Ensure modals are scrollable to bottom */
+.modal-content {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* Better touch scroll for lists */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}

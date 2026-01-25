@@ -1284,7 +1284,7 @@ export default function WorkoutTab({
     // Edit Mode
     if (isEditingPlan) {
       return (
-        <div className="space-y-4 pb-24">
+        <div className="space-y-4 pb-32">
           {/* Header */}
           <div className="flex items-center justify-between">
             <button onClick={cancelPlanEdits} className="text-soft-white/60 flex items-center gap-1">
@@ -1502,7 +1502,7 @@ export default function WorkoutTab({
 
     // View Mode (existing, with edit button)
     return (
-      <div className="space-y-4 pb-24">
+      <div className="space-y-4 pb-32">
         <div className="flex items-center justify-between">
           <button onClick={() => setViewingPlan(null)} className="text-soft-white/60 flex items-center gap-1">
             <ChevronRight className="rotate-180" size={20} />
@@ -1629,7 +1629,7 @@ export default function WorkoutTab({
   // Aktiv økt
   if (currentWorkout) {
     return (
-      <div className="space-y-4 pb-24">
+      <div className="space-y-4 pb-32">
         {/* Header med timer */}
         <div className="flex items-center justify-between">
           <div>
@@ -1757,7 +1757,7 @@ export default function WorkoutTab({
 
   // Startskjerm
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-32">
       {/* Quick Start */}
       <button
         onClick={quickStart}

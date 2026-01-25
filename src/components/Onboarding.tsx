@@ -688,20 +688,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 relative z-10 px-6 pb-32">
+      <div className="flex-1 relative z-10 px-6 pb-40 overflow-y-auto ios-scroll">
         <div className="max-w-md mx-auto">
           {renderStep()}
         </div>
       </div>
 
       {/* Footer Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-midnight via-midnight/95 to-transparent z-50">
+      <div 
+        className="fixed bottom-0 left-0 right-0 px-6 pt-4 bg-gradient-to-t from-midnight via-midnight/95 to-transparent z-50"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+      >
         <div className="max-w-md mx-auto flex gap-3">
           {step > 1 && (
             <button
               type="button"
               onClick={handleBack}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary flex items-center gap-2 min-h-[52px]"
             >
               <ChevronLeft size={20} />
               Tilbake
@@ -712,7 +715,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             type="button"
             onClick={handleNext}
             disabled={!canProceed()}
-            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[52px] active:scale-[0.98] transition-transform"
           >
             {step < totalSteps ? (
               <>

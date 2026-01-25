@@ -96,7 +96,7 @@ export default function ProgressTab({ bodyStats, setBodyStats, workouts, profile
   };
 
   return (
-    <div className="space-y-6 animate-fadeInUp pb-24">
+    <div className="space-y-6 animate-fadeInUp pb-32">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-display font-bold">Fremgang</h2>
         <button 

@@ -96,7 +96,7 @@ export default function HomeTab({ workouts, setActiveTab, gameStats, profile, cu
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-32">
       {/* Hero Section */}
       <div className="relative pt-4 pb-8">
         {/* Background Glow */}
