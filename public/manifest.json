@@ -1,12 +1,15 @@
 {
-  "name": "FitTrack - Treningsapp",
+  "name": "FitTrack - Din Treningsjournal",
   "short_name": "FitTrack",
-  "description": "Loggfør trening og følg din fremgang",
+  "description": "Loggfør trening, spor kosthold og følg din fremgang",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#0f0f1a",
   "orientation": "portrait",
+  "scope": "/",
+  "id": "/",
+  "categories": ["health", "fitness", "lifestyle"],
   "icons": [
     {
       "src": "/icon.svg",
@@ -14,6 +17,9 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false,
+  "related_applications": []
 }
 

@@ -200,7 +200,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen pb-24">
+    <div id="app-container" className="h-screen flex flex-col ios-scroll">
       {/* Background Pattern */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-electric/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
@@ -208,23 +208,27 @@ export default function Home() {
         <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-coral/5 rounded-full blur-3xl translate-y-1/2"></div>
       </div>
 
-      <div className="relative z-10 max-w-lg mx-auto">
-        <Header 
-          streak={calculateStreak()} 
-          profile={profile} 
-          gameStats={gameStats}
-        />
-        
-        <div className="px-6">
-          {renderTab()}
+      {/* Main Content Area - Scrollable */}
+      <main className="flex-1 overflow-y-auto ios-scroll relative z-10">
+        <div className="max-w-lg mx-auto safe-top">
+          <Header 
+            streak={calculateStreak()} 
+            profile={profile} 
+            gameStats={gameStats}
+          />
+          
+          <div className="px-4 sm:px-6 pb-28">
+            {renderTab()}
+          </div>
         </div>
-      </div>
+      </main>
 
+      {/* Fixed Navigation */}
       <Navigation 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         hasActiveWorkout={currentWorkout !== null}
       />
-    </main>
+    </div>
   );
 }
